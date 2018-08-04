@@ -9,7 +9,7 @@ RAND_RANGE = 1000
 
 
 class Zero(sabre.Abr):
-    S_INFO = 4
+    S_INFO = 5
     S_LEN = 10
     THROUGHPUT_NORM = 5 * 1024.0
     TIME_NORM = 10.0
@@ -17,7 +17,7 @@ class Zero(sabre.Abr):
     ACTOR_LR_RATE = 1e-4
     CRITIC_LR_RATE = 1e-3
     A_DIM = 10
-    GRADIENT_BATCH_SIZE = 5
+    GRADIENT_BATCH_SIZE = 32
 
     def __init__(self, scope):
         # self.gp = config['gp']
@@ -25,7 +25,7 @@ class Zero(sabre.Abr):
         # self.abr_osc = config['abr_osc']
         # self.abr_basic = config['abr_basic']
         self.quality = 0
-        self.last_quality = 0
+        #self.last_quality = 0
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
         self.quality_len = Zero.A_DIM
         self.sess = tf.Session()
@@ -47,11 +47,9 @@ class Zero(sabre.Abr):
         self.critic_gradient_batch = []
 
     def update(self, reward):
-        self.s_batch = [np.zeros((Zero.S_INFO, Zero.S_LEN))]
-        action_vec = np.zeros(Zero.A_DIM)
-        action_vec[0] = 1
-        self.a_batch = [action_vec]
-        self.r_batch = [0]
+        self.s_batch = []
+        self.a_batch = []
+        self.r_batch = []
         for (state,action) in self.history:
             self.s_batch.append(state)
             action_vec = np.zeros(Zero.A_DIM)
@@ -84,13 +82,14 @@ class Zero(sabre.Abr):
     def get_quality_delay(self, segment_index):
         #print(self.buffer_size, sabre.manifest.segment_time, sabre.get_buffer_level(),sabre.manifest.segments[segment_index])
         # print(sabre.log_history[-1],sabre.throughput)
-        time, throughput, latency, quality = sabre.log_history[-1]
+        time, throughput, latency, quality, rebuffer_time = sabre.log_history[-1]
         state = self.state
         state = np.roll(state, -1, axis=1)
         state[0, -1] = throughput / Zero.THROUGHPUT_NORM
         state[1, -1] = time / Zero.TIME_NORM
         state[2, -1] = latency / 1000.0
-        state[3, -1] = self.last_quality / self.quality_len
+        state[3, -1] = quality / self.quality_len
+        state[4, -1] = rebuffer_time / Zero.TIME_NORM
         self.state = state
         action_prob = self.actor.predict(
             np.reshape(state, (1, Zero.S_INFO, Zero.S_LEN)))

@@ -1294,7 +1294,7 @@ class Replace(FastSwitch):
         return None
 
 
-def execute(abr, video='../mmsys18/bbb.json', trace='../mmsys18/4Glogs/report_bus_0002.json', argv=''):
+def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_0002.json', argv=''):
     global manifest
     global buffer_contents
     global buffer_fcc
@@ -1451,7 +1451,7 @@ def execute(abr, video='../mmsys18/bbb.json', trace='../mmsys18/4Glogs/report_bu
     t = download_metric.size / download_time
     l = download_metric.time_to_first_bit
     throughput_history.push(download_time, t, l)
-    log_history.append((download_time, t, l, quality))
+    log_history.append((download_time, t, l, quality, 0))
     #print('%d,%d -> %d,%d' % (t, l, throughput, latency))
     total_play_time += download_metric.time
 
@@ -1534,7 +1534,7 @@ def execute(abr, video='../mmsys18/bbb.json', trace='../mmsys18/4Glogs/report_bu
 
         # update throughput estimate
         if download_metric.abandon_to_quality == None:
-            log_history.append((download_time, t, l, quality))
+            log_history.append((download_time, t, l, quality, full_delay))
             throughput_history.push(download_time, t, l)
 
     playout_buffer()
