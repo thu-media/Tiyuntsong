@@ -9,23 +9,24 @@ ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
 
+class DualNetwork(object):
+    def __init__(self, sess, scope):
+        self.sess = sess
+        self.scope = scope
+        self.reuse = False
 
-def create_dual_network(inputs, s_dim):
-    split_array = []
-    for i in range(s_dim[0]):
-        split = tflearn.conv_1d(
-            inputs[:, i:i + 1, :], FEATURE_NUM, KERNEL, activation='relu')
-        flattern = tflearn.flatten(split)
-        split_array.append(flattern)
-
-    #dense_net= tflearn.fully_connected(inputs[:, -1:, :], FEATURE_NUM, activation='relu')
-    # split_array.append(dense_net)
-    merge_net = tflearn.merge(split_array, 'concat')
-
-    dense_net_0 = tflearn.fully_connected(
-        merge_net, 64, activation='relu')
-
-    return dense_net_0
+    def create_dual_network(self, inputs, s_dims):
+        with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
+            inputs = tf.expand_dims(inputs, -1)
+            net = tflearn.conv_2d(inputs, FEATURE_NUM, KERNEL, activation='relu')
+            net = tflearn.max_pool_2d(net, 2)
+            net = tflearn.conv_2d(net, FEATURE_NUM * 2, KERNEL, activation='relu')
+            net = tflearn.max_pool_2d(net, 2)
+            net = tflearn.conv_2d(net, FEATURE_NUM * 4, KERNEL, activation='relu')
+            net = tflearn.max_pool_2d(net, 2)
+            out = tflearn.fully_connected(net, FEATURE_NUM, activation='relu')
+            self.reuse = True
+            return out
 
 
 class ActorNetwork(object):
@@ -34,19 +35,21 @@ class ActorNetwork(object):
     of all actions.
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate,scope):
+    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
         self.lr_rate = learning_rate
         self.scope = scope
+        self.dual = dual
 
         # Create the actor network
         self.inputs, self.out = self.create_actor_network()
 
         # Get all network parameters
         self.network_params = \
-            tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope + '-actor')
+            tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
+                              scope=self.scope + '-actor')
 
         # Set all network parameters
         self.input_network_params = []
@@ -88,10 +91,11 @@ class ActorNetwork(object):
             apply_gradients(zip(self.actor_gradients, self.network_params))
 
     def create_actor_network(self):
-        with tf.variable_scope(self.scope + '-actor'):
+        with tf.variable_scope(self.scope + '-actor-begin'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-            dense_net_0 = create_dual_network(inputs, self.s_dim)
+        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        with tf.variable_scope(self.scope + '-actor-begin'):
             out = tflearn.fully_connected(
                 dense_net_0, self.a_dim, activation='softmax')
 
@@ -136,18 +140,20 @@ class CriticNetwork(object):
     On policy: the action must be obtained from the output of the Actor network.
     """
 
-    def __init__(self, sess, state_dim, learning_rate,scope):
+    def __init__(self, sess, state_dim, learning_rate, scope, dual):
         self.sess = sess
         self.s_dim = state_dim
         self.lr_rate = learning_rate
         self.scope = scope
+        self.dual = dual
 
         # Create the critic network
         self.inputs, self.out = self.create_critic_network()
 
         # Get all network parameters
         self.network_params = \
-            tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope + '-critic')
+            tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
+                              scope=self.scope + '-critic')
 
         # Set all network parameters
         self.input_network_params = []
@@ -179,7 +185,8 @@ class CriticNetwork(object):
         with tf.variable_scope(self.scope + '-critic'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-            dense_net_0 = create_dual_network(inputs, self.s_dim)
+        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        with tf.variable_scope(self.scope + '-critic-end'):
             out = tflearn.fully_connected(dense_net_0, 1, activation='linear')
             return inputs, out
 
@@ -219,7 +226,10 @@ class CriticNetwork(object):
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
 
-
+class GANNetwork(object):
+    def __init__(sess):
+        self.sess = sess
+        
 def compute_gradients(s_batch, a_batch, r_batch, actor, critic):
     """
     batch of s, a, r is from samples in a sequence

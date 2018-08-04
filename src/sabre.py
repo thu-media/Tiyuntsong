@@ -1294,7 +1294,7 @@ class Replace(FastSwitch):
         return None
 
 
-def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_0002.json', argv=''):
+def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_0002.json', argv=None):
     global manifest
     global buffer_contents
     global buffer_fcc
@@ -1363,7 +1363,10 @@ def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_00
                         help='Specify at what quality index we are ramped up (None matches network).')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Run in verbose mode.')
-    args = parser.parse_args(argv.split(' '))
+    if argv is None:
+        args = parser.parse_args(None)
+    else:
+        args = parser.parse_args(argv.split(' '))
     args.abr = abr
     args.movie = video
     args.network = trace
