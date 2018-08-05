@@ -29,7 +29,9 @@ def battle(agent_result):
 
 
 def main():
+    global log_file
     agent_list = [Zero('A'), Zero('B')]
+    _update, _clear = 0, 1
     _tracepool = tracepool(ratio=0.01)
     while True:
         _tmp = [0, 0, 0]
@@ -45,10 +47,15 @@ def main():
             #print(agent_reward, _tmp)
             _tmp[np.argmax(agent_reward)] += 1
             _tmp[-1] += 1
-            #agent_list[0].update(agent_reward[0])
-            for _agent, _r in zip(agent_list, agent_reward):
-                _agent.update(_r)
+            agent_list[_update].update(agent_reward[_update])
+            agent_list[_clear].clear()
+            # for _agent, _r in zip(agent_list, agent_reward):
+            #    _agent.update(_r)
+        _clear = np.argmax(_tmp[0:-1])
+        _update = np.argmin(_tmp[0:-1])
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%')
+        log_file.write('\n')
+        log_file.flush()
 
 
 if __name__ == '__main__':

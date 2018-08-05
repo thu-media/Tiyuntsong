@@ -9,22 +9,27 @@ ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
 
+
 class DualNetwork(object):
     def __init__(self, sess, scope):
         self.sess = sess
         self.scope = scope
         self.reuse = False
 
-    def create_dual_network(self, inputs, s_dims):
+    def create_dual_network(self, inputs, s_dim):
         with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
-            inputs = tf.expand_dims(inputs, -1)
-            net = tflearn.conv_2d(inputs, FEATURE_NUM, KERNEL, activation='relu')
-            net = tflearn.max_pool_2d(net, 2)
-            net = tflearn.conv_2d(net, FEATURE_NUM * 2, KERNEL, activation='relu')
-            net = tflearn.max_pool_2d(net, 2)
-            net = tflearn.conv_2d(net, FEATURE_NUM * 4, KERNEL, activation='relu')
-            net = tflearn.max_pool_2d(net, 2)
-            out = tflearn.fully_connected(net, FEATURE_NUM, activation='relu')
+            split_array = []
+            for i in range(s_dim[0]):
+                tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
+                split = tflearn.conv_1d(tmp, FEATURE_NUM // 4, KERNEL, activation='relu')
+                split = tflearn.avg_pool_1d(split, 2)
+                split = tflearn.conv_1d(tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
+                split = tflearn.avg_pool_1d(split, 2)
+                split = tflearn.conv_1d(tmp, FEATURE_NUM, KERNEL, activation='relu')
+                #split = tflearn.avg_pool_1d(split, 2)
+                flattern = tflearn.flatten(split)
+                split_array.append(flattern)
+            out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 
@@ -96,6 +101,8 @@ class ActorNetwork(object):
                 shape=[None, self.s_dim[0], self.s_dim[1]])
         dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
         with tf.variable_scope(self.scope + '-actor-begin'):
+            dense_net_0 = tflearn.fully_connected(
+                dense_net_0, FEATURE_NUM, activation='relu')
             out = tflearn.fully_connected(
                 dense_net_0, self.a_dim, activation='softmax')
 
@@ -187,6 +194,8 @@ class CriticNetwork(object):
                 shape=[None, self.s_dim[0], self.s_dim[1]])
         dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
         with tf.variable_scope(self.scope + '-critic-end'):
+            dense_net_0 = tflearn.fully_connected(
+                dense_net_0, FEATURE_NUM, activation='relu')
             out = tflearn.fully_connected(dense_net_0, 1, activation='linear')
             return inputs, out
 
@@ -226,10 +235,45 @@ class CriticNetwork(object):
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
 
+
 class GANNetwork(object):
-    def __init__(sess):
+    # https://arxiv.org/pdf/1406.2661.pdf
+    #disc_loss = -tf.reduce_mean(tf.log(disc_real) + tf.log(1. - disc_fake))
+    #gen_loss = -tf.reduce_mean(tf.log(disc_fake))
+    def __init__(self, sess, state_dim, learning_rate, scope, dual, critic):
         self.sess = sess
-        
+        self.s_dim = state_dim
+        self.lr_rate = learning_rate
+        self.scope = scope
+        self.dual = dual
+        self.critic = critic
+        self.inputs_g, self.generate = self.create_generate_network()
+        self.inputs_d, self.discriminator = self.create_discriminator_network()
+        self.out = tf.placeholder(tf.float32, [None, 1])
+
+        self.gen_loss = -tf.reduce_mean(tf.log(self.discriminator))
+        self.disc_loss = tflearn.mean_square(
+            tf.log(self.discriminator), self.out)
+
+    def create_generate_network(self):
+        with tf.variable_scope(self.scope + '-gan_g'):
+            inputs = tflearn.input_data(
+                shape=[None, self.s_dim[0], self.s_dim[1]])
+        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        with tf.variable_scope(self.scope + '-gan_g-end'):
+            out = tflearn.fully_connected(
+                dense_net_0, FEATURE_NUM, activation='sigmoid')
+            return inputs, out
+
+    def create_discriminator_network(self):
+        with tf.variable_scope(self.scope + '-gan_d'):
+            inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
+            net = tflearn.fully_connected(inputs, 128, activation='relu')
+            net = tflearn.fully_connected(inputs, 64, activation='relu')
+            out = tflearn.fully_connected(net, 1, activation='linear')
+            return inputs, out
+
+
 def compute_gradients(s_batch, a_batch, r_batch, actor, critic):
     """
     batch of s, a, r is from samples in a sequence
@@ -241,7 +285,6 @@ def compute_gradients(s_batch, a_batch, r_batch, actor, critic):
     ba_size = s_batch.shape[0]
 
     v_batch = critic.predict(s_batch)
-
     R_batch = np.zeros(r_batch.shape)
 
     # if terminal:
