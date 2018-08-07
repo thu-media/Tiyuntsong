@@ -1543,7 +1543,255 @@ def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_00
     playout_buffer()
     return played_bitrate, rebuffer_time, total_bitrate_change
 
+def execute_model(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_0002.json', argv=None):
+    global manifest
+    global buffer_contents
+    global buffer_fcc
+    global rebuffer_event_count
+    global rebuffer_time
+    global played_utility
+    global played_bitrate
+    global total_play_time
+    global total_bitrate_change
+    global total_log_bitrate_change
+    global last_played
+    global smoothness
+
+    global rampup_origin
+    global rampup_time
+    global rampup_threshold
+    global sustainable_quality
+    global verbose
+    global pending_quality_up
+    global max_buffer_size
+    global total_reaction_time
+
+    global log_history
+    #global throughput_history
+
+    parser = argparse.ArgumentParser(description='Simulate an ABR session.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-f', '--file', metavar='SAVEFILE', default='save.log',
+                        help='Save the secific metrics to file.')
+    parser.add_argument('-nm', '--network-multiplier', metavar='MULTIPLIER',
+                        type=float, default=1,
+                        help='Multiply throughput by MULTIPLIER.')
+    parser.add_argument('-ml', '--movie-length', metavar='LEN', type=float, default=None,
+                        help='Specify the movie length in seconds (use MOVIE length if None).')
+    parser.add_argument('-ab', '--abr-basic', action='store_true',
+                        help='Set ABR to BASIC (ABR strategy dependant).')
+    parser.add_argument('-ao', '--abr-osc', action='store_true',
+                        help='Set ABR to minimize oscillations.')
+    parser.add_argument('-gp', '--gamma-p', metavar='GAMMAP', type=float, default=5,
+                        help='Specify the (gamma p) product in seconds.')
+    parser.add_argument('-noibr', '--no-insufficient-buffer-rule', action='store_true',
+                        help='Disable Insufficient Buffer Rule.')
+    parser.add_argument('-ma', '--moving-average', metavar='AVERAGE',
+                        choices=average_list.keys(), default=average_default,
+                        help='Specify the moving average strategy (%s).' %
+                        ', '.join(average_list.keys()))
+    parser.add_argument('-ws', '--window-size', metavar='WINDOW_SIZE',
+                        nargs='+', type=int, default=[3],
+                        help='Specify sliding window size.')
+    parser.add_argument('-hl', '--half-life', metavar='HALF_LIFE',
+                        nargs='+', type=float, default=[3, 8],
+                        help='Specify EWMA half life.')
+    parser.add_argument('-s', '--seek', nargs=2, metavar=('WHEN', 'SEEK'),
+                        type=float, default=None,
+                        help='Specify when to seek in seconds and where to seek in seconds.')
+    choices = ['none', 'left', 'right']
+    parser.add_argument('-r', '--replace', metavar='REPLACEMENT',
+                        choices=choices, default='none',
+                        help='Set replacement strategy (%s).' % ', '.join(choices))
+    parser.add_argument('-b', '--max-buffer', metavar='MAXBUFFER', type=float, default=25,
+                        help='Specify the maximum buffer size in seconds.')
+    parser.add_argument('-noa', '--no-abandon', action='store_true',
+                        help='Disable abandonment.')
+    parser.add_argument('-rmp', '--rampup-threshold', metavar='THRESHOLD',
+                        type=int, default=None,
+                        help='Specify at what quality index we are ramped up (None matches network).')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Run in verbose mode.')
+    if argv is None:
+        args = parser.parse_args(None)
+    else:
+        args = parser.parse_args(argv.split(' '))
+    args.abr = abr
+    args.movie = video
+    args.network = trace
+    verbose = args.verbose
+
+    buffer_contents = []
+    buffer_fcc = 0
+    pending_quality_up = []
+    reaction_metrics = []
+    log_history = []
+
+    rebuffer_event_count = 0
+    rebuffer_time = 0
+    played_utility = 0
+    played_bitrate = 0
+    total_play_time = 0
+    total_bitrate_change = 0
+    total_log_bitrate_change = 0
+    total_reaction_time = 0
+    last_played = None
+
+    overestimate_count = 0
+    overestimate_average = 0
+    goodestimate_count = 0
+    goodestimate_average = 0
+    estimate_average = 0
+
+    rampup_origin = 0
+    rampup_time = None
+    rampup_threshold = args.rampup_threshold
+
+    max_buffer_size = args.max_buffer * 1000
+    manifest = load_json(args.movie)
+    bitrates = manifest['bitrates_kbps']
+    utility_offset = 0 - math.log(bitrates[0])  # so utilities[0] = 0
+    utilities = [math.log(b) + utility_offset for b in bitrates]
+    if args.movie_length != None:
+        l1 = len(manifest['segment_sizes_bits'])
+        l2 = math.ceil(args.movie_length * 1000 /
+                       manifest['segment_duration_ms'])
+        manifest['segment_sizes_bits'] *= math.ceil(l2 / l1)
+        manifest['segment_sizes_bits'] = manifest['segment_sizes_bits'][0:l2]
+    manifest = ManifestInfo(segment_time=manifest['segment_duration_ms'],
+                            bitrates=bitrates,
+                            utilities=utilities,
+                            segments=manifest['segment_sizes_bits'])
+    #print(args.network)
+    network_trace = load_json(args.network)
+    network_trace = [NetworkPeriod(time=p['duration_ms'],
+                                   bandwidth=p['bandwidth_kbps'] *
+                                   args.network_multiplier,
+                                   latency=p['latency_ms'])
+                     for p in network_trace]
+
+    buffer_size = args.max_buffer * 1000
+    gamma_p = args.gamma_p
+
+    config = {'buffer_size': buffer_size,
+              'gp': gamma_p,
+              'abr_osc': args.abr_osc,
+              'abr_basic': args.abr_basic,
+              'no_ibr': args.no_insufficient_buffer_rule}
+    args.abr.use_abr_o = args.abr_osc
+    args.abr.use_abr_u = not args.abr_osc
+    abr = args.abr(config)
+    network = NetworkModel(network_trace)
+
+    if args.replace == 'left':
+        replacer = Replace(0)
+    elif args.replace == 'right':
+        replacer = Replace(1)
+    else:
+        replacer = NoReplace()
+
+    config = {'window_size': args.window_size, 'half_life': args.half_life}
+    throughput_history = average_list[args.moving_average](config)
+
+    # download first segment
+    quality = abr.get_first_quality()
+    size = manifest.segments[0][quality]
+    download_metric = network.download(size, 0, quality, 0)
+    download_time = download_metric.time - download_metric.time_to_first_bit
+    startup_time = download_time
+    buffer_contents.append(download_metric.quality)
+    t = download_metric.size / download_time
+    l = download_metric.time_to_first_bit
+    throughput_history.push(download_time, t, l)
+    log_history.append((download_time, t, l, quality, 0))
+    #print('%d,%d -> %d,%d' % (t, l, throughput, latency))
+    total_play_time += download_metric.time
+
+    # download rest of segments
+    next_segment = 1
+    abandoned_to_quality = None
+    while next_segment < len(manifest.segments):
+
+        full_delay = get_buffer_level() + manifest.segment_time - buffer_size
+        if full_delay > 0:
+            deplete_buffer(full_delay)
+            network.delay(full_delay)
+            abr.report_delay(full_delay)
+
+        if abandoned_to_quality == None:
+            (quality, delay) = abr.get_quality_delay(next_segment)
+            replace = replacer.check_replace(quality)
+        else:
+            (quality, delay) = (abandoned_to_quality, 0)
+            replace = None
+            abandon_to_quality = None
+
+        if replace != None:
+            delay = 0
+            current_segment = next_segment + replace
+            check_abandon = replacer.check_abandon
+        else:
+            current_segment = next_segment
+            check_abandon = abr.check_abandon
+        if args.no_abandon:
+            check_abandon = None
+
+        size = manifest.segments[current_segment][quality]
+
+        if delay > 0:
+            deplete_buffer(delay)
+            network.delay(delay)
+
+        download_metric = network.download(size, current_segment, quality,
+                                           get_buffer_level(), check_abandon)
+
+        deplete_buffer(download_metric.time)
+
+        # update buffer with new download
+        if replace == None:
+            if download_metric.abandon_to_quality == None:
+                buffer_contents += [quality]
+                next_segment += 1
+            else:
+                abandon_to_quality = download_metric.abandon_to_quality
+        else:
+            # abandon_to_quality == None
+            if download_metric.abandon_to_quality == None:
+                if get_buffer_level() + manifest.segment_time * replace >= 0:
+                    buffer_contents[replace] = quality
+                else:
+                    print('WARNING: too late to replace')
+                    pass
+            else:
+                pass
+
+        abr.report_download(download_metric, replace != None)
+
+        # calculate throughput and latency
+        download_time = download_metric.time - download_metric.time_to_first_bit
+        t = download_metric.downloaded / download_time
+        l = download_metric.time_to_first_bit
+
+        # check accuracy of throughput estimate
+        if throughput > t:
+            overestimate_count += 1
+            overestimate_average += (throughput - t -
+                                     overestimate_average) / overestimate_count
+        else:
+            goodestimate_count += 1
+            goodestimate_average += (t - throughput -
+                                     goodestimate_average) / goodestimate_count
+        estimate_average += ((throughput - t - estimate_average) /
+                             (overestimate_count + goodestimate_count))
+
+        # update throughput estimate
+        if download_metric.abandon_to_quality == None:
+            log_history.append((download_time, t, l, quality, full_delay))
+            throughput_history.push(download_time, t, l)
+
+    playout_buffer()
+    return played_bitrate, rebuffer_time, total_bitrate_change
 
 if __name__ == '__main__':
     #argv = '-m ../mmsys18/bbb.json -n ../mmsys18/4Glogs/report_bus_0002.json -nm 1.0 -a bola'
-    print(execute(abr=ThroughputRule, argv='-nm 0.1'))
+    print(execute_model(abr=ThroughputRule, argv=None))

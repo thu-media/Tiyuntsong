@@ -48,12 +48,21 @@ class Zero(sabre.Abr):
         self.critic_gradient_batch = []
 
     def clear(self):
-        self.history = []
+        self.actor_gradient_batch = []
+        self.critic_gradient_batch = []
 
-    def update(self, reward):
-        self.s_batch = []
-        self.a_batch = []
-        self.r_batch = []
+    def learn(self):
+        assert len(self.actor_gradient_batch) == len(
+            self.critic_gradient_batch)
+        for i in range(len(self.actor_gradient_batch)):
+            self.actor.apply_gradients(self.actor_gradient_batch[i])
+            self.critic.apply_gradients(self.critic_gradient_batch[i])
+
+        self.actor_gradient_batch = []
+        self.critic_gradient_batch = []
+
+    def push(self, reward):
+        self.s_batch, self.a_batch, self.r_batch = [], [], []
         for (state, action) in self.history:
             self.s_batch.append(state)
             action_vec = np.zeros(Zero.A_DIM)
@@ -69,18 +78,7 @@ class Zero(sabre.Abr):
 
         self.actor_gradient_batch.append(actor_gradient)
         self.critic_gradient_batch.append(critic_gradient)
-
-        #entropy_record = []
-        if len(self.actor_gradient_batch) >= Zero.GRADIENT_BATCH_SIZE:
-
-            assert len(self.actor_gradient_batch) == len(
-                self.critic_gradient_batch)
-            for i in range(len(self.actor_gradient_batch)):
-                self.actor.apply_gradients(self.actor_gradient_batch[i])
-                self.critic.apply_gradients(self.critic_gradient_batch[i])
-
-            self.actor_gradient_batch = []
-            self.critic_gradient_batch = []
+        
         self.history = []
 
     def get_quality_delay(self, segment_index):

@@ -140,7 +140,19 @@ class ActorNetwork(object):
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
 
+class RudderNetwork(object):
+    #SEQ_LEN = 20
+    def __init__(self, sess, state_dim, learning_rate, scope):
+        self.sess = sess
+        self.s_dim = state_dim
+        self.lr_rate = learning_rate
+        self.scope = scope
+        self.s_dim_queue = []
+    
+    def create_rudder_network(self):
+        pass
 
+       
 class CriticNetwork(object):
     """
     Input to the network is the state and action, output is V(s).
