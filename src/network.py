@@ -52,13 +52,13 @@ class Zero(sabre.Abr):
     def clear(self):
         self.replay_buffer = []
 
-    def learn(self, buffer = None):
+    def learn(self, buffer=None):
         actor_gradient_batch, critic_gradient_batch = [], []
-        if buffer is None:
-            _buf = self.replay_buffer
-        else:
-            _buf = buffer
-        for (s_batch, a_batch, r_batch) in _buf:
+        if buffer is not None:
+            for (s, a, r) in buffer:
+                self.replay_buffer.append((s, a, r))
+                
+        for (s_batch, a_batch, r_batch) in self.replay_buffer:
             actor_gradient, critic_gradient, td_batch = \
                 a3c.compute_gradients(s_batch=np.stack(s_batch),
                                       a_batch=np.vstack(a_batch),
@@ -74,9 +74,10 @@ class Zero(sabre.Abr):
 
         self.actor_gradient_batch = []
         self.critic_gradient_batch = []
-        self.replay_buffer = []
+        #self.replay_buffer = []
 
     def pull(self):
+        # print(self.replay_buffer)
         return self.replay_buffer
 
     def push(self, reward):
@@ -87,6 +88,7 @@ class Zero(sabre.Abr):
             action_vec[action] = 1
             a_batch.append(action_vec)
             r_batch.append(reward)
+        #r_batch[-1] = reward
         self.replay_buffer.append((s_batch, a_batch, r_batch))
         # actor_gradient, critic_gradient, td_batch = \
         #     a3c.compute_gradients(s_batch=np.stack(self.s_batch),
@@ -125,6 +127,3 @@ class Zero(sabre.Abr):
         delay = 0
         self.history.append((self.state, quality))
         return (quality, delay)
-
-    def update_gradients(self, reward):
-        pass
