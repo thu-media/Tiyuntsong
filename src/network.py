@@ -28,7 +28,8 @@ class Zero(sabre.Abr):
         #self.last_quality = 0
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
         self.quality_len = Zero.A_DIM
-        self.sess = tf.Session()
+        gpu_options = tf.GPUOptions(allow_growth=True)
+        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         # with tf.Session() as sess, open(LOG_FILE + '_agent_' + str(agent_id), 'wb') as log_file:
         self.dual = a3c.DualNetwork(self.sess, scope)
         self.actor = a3c.ActorNetwork(self.sess,
@@ -40,45 +41,63 @@ class Zero(sabre.Abr):
                                         learning_rate=Zero.CRITIC_LR_RATE, scope=scope, dual=self.dual)
         self.sess.run(tf.global_variables_initializer())
         self.history = []
-        self.s_batch = [np.zeros((Zero.S_INFO, Zero.S_LEN))]
-        action_vec = np.zeros(Zero.A_DIM)
-        self.a_batch = [action_vec]
-        self.r_batch = []
-        self.actor_gradient_batch = []
-        self.critic_gradient_batch = []
+        self.replay_buffer = []
+        # self.s_batch = [np.zeros((Zero.S_INFO, Zero.S_LEN))]
+        # action_vec = np.zeros(Zero.A_DIM)
+        # self.a_batch = [action_vec]
+        # self.r_batch = []
+        # self.actor_gradient_batch = []
+        # self.critic_gradient_batch = []
 
     def clear(self):
+        self.replay_buffer = []
+
+    def learn(self, buffer = None):
+        actor_gradient_batch, critic_gradient_batch = [], []
+        if buffer is None:
+            _buf = self.replay_buffer
+        else:
+            _buf = buffer
+        for (s_batch, a_batch, r_batch) in _buf:
+            actor_gradient, critic_gradient, td_batch = \
+                a3c.compute_gradients(s_batch=np.stack(s_batch),
+                                      a_batch=np.vstack(a_batch),
+                                      r_batch=np.vstack(r_batch),
+                                      actor=self.actor, critic=self.critic)
+
+            actor_gradient_batch.append(actor_gradient)
+            critic_gradient_batch.append(critic_gradient)
+
+        for i in range(len(actor_gradient_batch)):
+            self.actor.apply_gradients(actor_gradient_batch[i])
+            self.critic.apply_gradients(critic_gradient_batch[i])
+
         self.actor_gradient_batch = []
         self.critic_gradient_batch = []
+        self.replay_buffer = []
 
-    def learn(self):
-        assert len(self.actor_gradient_batch) == len(
-            self.critic_gradient_batch)
-        for i in range(len(self.actor_gradient_batch)):
-            self.actor.apply_gradients(self.actor_gradient_batch[i])
-            self.critic.apply_gradients(self.critic_gradient_batch[i])
-
-        self.actor_gradient_batch = []
-        self.critic_gradient_batch = []
+    def pull(self):
+        return self.replay_buffer
 
     def push(self, reward):
-        self.s_batch, self.a_batch, self.r_batch = [], [], []
+        s_batch, a_batch, r_batch = [], [], []
         for (state, action) in self.history:
-            self.s_batch.append(state)
+            s_batch.append(state)
             action_vec = np.zeros(Zero.A_DIM)
             action_vec[action] = 1
-            self.a_batch.append(action_vec)
-            self.r_batch.append(reward)
-        actor_gradient, critic_gradient, td_batch = \
-            a3c.compute_gradients(s_batch=np.stack(self.s_batch),
-                                  a_batch=np.vstack(self.a_batch),
-                                  r_batch=np.vstack(self.r_batch),
-                                  actor=self.actor, critic=self.critic)
-        td_loss = np.mean(td_batch)
+            a_batch.append(action_vec)
+            r_batch.append(reward)
+        self.replay_buffer.append((s_batch, a_batch, r_batch))
+        # actor_gradient, critic_gradient, td_batch = \
+        #     a3c.compute_gradients(s_batch=np.stack(self.s_batch),
+        #                           a_batch=np.vstack(self.a_batch),
+        #                           r_batch=np.vstack(self.r_batch),
+        #                           actor=self.actor, critic=self.critic)
+        # td_loss = np.mean(td_batch)
 
-        self.actor_gradient_batch.append(actor_gradient)
-        self.critic_gradient_batch.append(critic_gradient)
-        
+        # self.actor_gradient_batch.append(actor_gradient)
+        # self.critic_gradient_batch.append(critic_gradient)
+
         self.history = []
 
     def get_quality_delay(self, segment_index):
@@ -103,8 +122,6 @@ class Zero(sabre.Abr):
         action_cumsum = np.cumsum(action_prob[0])
         quality = (action_cumsum > np.random.randint(
             1, RAND_RANGE) / float(RAND_RANGE)).argmax()
-        # print(a3c.compute_entropy(action_prob[0]))
-        # entropy_record.append(a3c.compute_entropy(action_prob[0]))
         delay = 0
         self.history.append((self.state, quality))
         return (quality, delay)

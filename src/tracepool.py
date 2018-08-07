@@ -18,7 +18,7 @@ class tracepool(object):
 
     def sample(self):
         for _trace in self.get_list():
-            for _abr, _index in zip(self.abr_list, enumerate(self.abr_list)):
+            for _index, _abr in enumerate(self.abr_list):
                 self.sample_list[_index].append(sabre.execute_model(abr=_abr,trace=_trace))
 
     def get_list(self):

@@ -44,13 +44,15 @@ def main():
                 agent_result.append(
                     (total_bitrate, total_rebuffer, total_smoothness))
             agent_reward = battle(agent_result)
+            #print(agent_reward, _tmp)
             _tmp[np.argmax(agent_reward)] += 1
             _tmp[-1] += 1
-            for _agent, _r in zip(agent_list, agent_reward):
-                _agent.update(_r)
-        _clear, _update = np.argmax(_tmp[0:-1]), np.argmin(_tmp[0:-1])
-        agent_list[_update].learn()
-        agent_list[_clear].clear()
+            agent_list[_update].update(agent_reward[_update])
+            agent_list[_clear].clear()
+            # for _agent, _r in zip(agent_list, agent_reward):
+            #    _agent.update(_r)
+        _clear = np.argmax(_tmp[0:-1])
+        _update = np.argmin(_tmp[0:-1])
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%')
         log_file.write('\n')
         log_file.flush()
