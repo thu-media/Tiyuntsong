@@ -1,6 +1,6 @@
 import sabre as env
 import math
-from network import Zero
+from network_double import Zero
 from tracepool import tracepool
 import numpy as np
 from tqdm import tqdm
