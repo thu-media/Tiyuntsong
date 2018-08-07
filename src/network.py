@@ -3,6 +3,8 @@ import math
 import numpy as np
 import a3c
 import tensorflow as tf
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 #import tflearn
 
 RAND_RANGE = 1000
@@ -57,7 +59,7 @@ class Zero(sabre.Abr):
         if buffer is not None:
             for (s, a, r) in buffer:
                 self.replay_buffer.append((s, a, r))
-                
+
         for (s_batch, a_batch, r_batch) in self.replay_buffer:
             actor_gradient, critic_gradient, td_batch = \
                 a3c.compute_gradients(s_batch=np.stack(s_batch),

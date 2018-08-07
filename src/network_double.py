@@ -3,6 +3,8 @@ import math
 import numpy as np
 import a3c
 import tensorflow as tf
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 #import tflearn
 
 RAND_RANGE = 1000
