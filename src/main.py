@@ -36,6 +36,7 @@ def main():
     while True:
         _tmp = [0, 0, 0]
         _state_stack, _reward_stack = [], []
+        _trace_result = []
         for _trace in tqdm(_tracepool.get_list()):
             agent_result = []
             for _agent in agent_list:
@@ -48,6 +49,7 @@ def main():
             _tmp[-1] += 1
             for _agent, _r in zip(agent_list, agent_reward):
                 _agent.push(_r)
+            _trace_result.append(agent_result)
         _clear = np.argmax(_tmp[0:-1])
         #_buffer = agent_list[_clear].pull()
         for p in range(len(agent_list)):
@@ -56,7 +58,7 @@ def main():
                 #agent_list[p].learn()
         for _agent in agent_list:
             _agent.clear()
-
+        print(_tracepool.battle(_trace_result))
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%')
         log_file.write('\n')
         log_file.flush()

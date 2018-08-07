@@ -2,41 +2,52 @@ import os
 import numpy as np
 import sabre
 
+
 class tracepool(object):
-    def __init__(self,workdir = './traces',ratio = 0.1):
+    def __init__(self, workdir='./traces', ratio=0.1):
         self.work_dir = workdir
         self.trace_list = []
-        self.abr_list = [sabre.ThroughputRule,sabre.Bola,sabre.BolaEnh,sabre.DynamicDash,sabre.Dynamic]
+        self.abr_list = [sabre.ThroughputRule, sabre.Bola,
+                         sabre.BolaEnh, sabre.DynamicDash, sabre.Dynamic]
         self.sample_list = []
-        for p in self.abr_list:
-            self.sample_list.append([])
-        self.sample()
         for p in os.listdir(self.work_dir):
             for l in os.listdir(self.work_dir + '/' + p):
                 if np.random.rand() <= ratio:
                     self.trace_list.append(self.work_dir + '/' + p + '/' + l)
 
+        for p in self.abr_list:
+            self.sample_list.append([])
+        self.sample()
+
     def sample(self):
+        print('generating samples')
         for _trace in self.get_list():
             for _index, _abr in enumerate(self.abr_list):
-                self.sample_list[_index].append(sabre.execute_model(abr=_abr,trace=_trace))
+                self.sample_list[_index].append(
+                    sabre.execute_model(abr=_abr, trace=_trace))
+        print('done')
 
     def get_list(self):
         return self.trace_list
 
     def battle(self, agent_result):
         ret = []
-        for _index in enumerate(self.abr_list):
+        for p in range(len(agent_result[0])):
+            ret.append(self._battle_index(agent_result, p))
+        return ret
+
+    def _battle_index(self, agent_result, index):
+        ret = []
+        for _index in range(len(self.abr_list)):
             tmp = [0, 0, 0]
             for _trace_index in range(len(self.get_list())):
-                for p in agent_result:
-                    res = self._battle(p[_trace_index], self.sample_list[_index][_trace_index])
-                    tmp[np.argmax(res)] += 1
-                    tmp[-1] += 1
-            ret.append(tmp[0] * 100.0 / tmp[-1])
+                res = self._battle(
+                    [agent_result[_trace_index][index], self.sample_list[_index][_trace_index]])
+                tmp[np.argmax(res)] += 1
+                tmp[-1] += 1
+            ret.append(round(tmp[0] * 100.0 / tmp[-1], 2))
         return ret
-            
-    
+
     def _battle(self, agent_result):
         total_bitrate0, total_rebuffer0, _ = agent_result[0]
         total_bitrate1, total_rebuffer1, _ = agent_result[1]
