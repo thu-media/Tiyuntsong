@@ -5,6 +5,7 @@ from tracepool import tracepool
 import numpy as np
 from tqdm import tqdm
 log_file = open('zero.txt', 'w')
+NUM_AGENT = 2
 
 
 def battle(agent_result):
@@ -30,7 +31,10 @@ def battle(agent_result):
 
 def main():
     global log_file
-    agent_list = [Zero('A'), Zero('B')]
+    #agent_list = [Zero('A'), Zero('B')]
+    agent_list = []
+    for p in range(NUM_AGENT):
+        agent_list.append(Zero(str(p)))
     _update, _clear = 0, 1
     _tracepool = tracepool(ratio=0.01)
     while True:
@@ -51,11 +55,12 @@ def main():
                 _agent.push(_r)
             _trace_result.append(agent_result)
         _clear = np.argmax(_tmp[0:-1])
-        #_buffer = agent_list[_clear].pull()
+        _buffer = agent_list[_clear].pull()
         for p in range(len(agent_list)):
             if p != _clear:
                 agent_list[p].learn()
-                #agent_list[p].learn()
+                agent_list[p].teach(_buffer)
+                # agent_list[p].learn()
         for _agent in agent_list:
             _agent.clear()
         print(_tracepool.battle(_trace_result))

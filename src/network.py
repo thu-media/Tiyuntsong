@@ -1,7 +1,7 @@
 import sabre
 import math
 import numpy as np
-import a3c
+import dual as a3c
 import tensorflow as tf
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '2'
@@ -51,14 +51,22 @@ class Zero(sabre.Abr):
         # self.actor_gradient_batch = []
         # self.critic_gradient_batch = []
 
+    def teach(self, buffer):
+        for (s_batch, a_batch, r_batch) in buffer:
+            _s = np.array(s_batch)
+            _a = np.array(a_batch)
+            #print(_s.shape, _a.shape)
+            #for (_s, _a, _r) in zip(s_batch, a_batch, r_batch):
+            #    _s = np.reshape(_s, (1, Zero.S_INFO, Zero.S_LEN))
+            #    _a = np.reshape(_a, (1, Zero.A_DIM))
+            self.actor.teach(_s, _a)
+            #self.replay_buffer.append((s, a, r))
+
     def clear(self):
         self.replay_buffer = []
 
-    def learn(self, buffer=None):
+    def learn(self):
         actor_gradient_batch, critic_gradient_batch = [], []
-        if buffer is not None:
-            for (s, a, r) in buffer:
-                self.replay_buffer.append((s, a, r))
 
         for (s_batch, a_batch, r_batch) in self.replay_buffer:
             actor_gradient, critic_gradient, td_batch = \
@@ -89,8 +97,8 @@ class Zero(sabre.Abr):
             action_vec = np.zeros(Zero.A_DIM)
             action_vec[action] = 1
             a_batch.append(action_vec)
-            r_batch.append(reward)
-        #r_batch[-1] = reward
+            r_batch.append(0)
+        r_batch[-1] = reward
         self.replay_buffer.append((s_batch, a_batch, r_batch))
         # actor_gradient, critic_gradient, td_batch = \
         #     a3c.compute_gradients(s_batch=np.stack(self.s_batch),
@@ -104,7 +112,6 @@ class Zero(sabre.Abr):
 
         self.history = []
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
-        
 
     def get_quality_delay(self, segment_index):
         #print(self.buffer_size, sabre.manifest.segment_time, sabre.get_buffer_level(),sabre.manifest.segments[segment_index])
@@ -120,9 +127,9 @@ class Zero(sabre.Abr):
         state[4, -1] = quality / self.quality_len
         state[5, -1] = rebuffer_time / Zero.TIME_NORM
         state[6, -1] = (manifest_len - segment_index) / manifest_len
-        state[7, 0:Zero.A_DIM] = sabre.manifest.bitrates / \
-            sabre.manifest.bitrates[-1]
-        _fft = np.fft.fft2(state[0])
+        state[7, 0:Zero.A_DIM] = np.array(sabre.manifest.bitrates /
+                                          np.max(sabre.manifest.bitrates))
+        _fft = np.fft.fft(state[0])
         state[8] = _fft.real
         state[9] = _fft.imag
 

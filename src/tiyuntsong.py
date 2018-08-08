@@ -9,13 +9,26 @@ ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
 
+class DualNetwork(object):
+    def __init__(self, sess, scope):
+        self.sess = sess
+        self.scope = scope
+        self.reuse = False
+
+    def create_dual_network(self, inputs, s_dim):
+        with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
+
+            self.reuse = True
+            return out
+
+
 class ActorNetwork(object):
     """
     Input to the network is the state, output is the distribution
     of all actions.
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual = None):
+    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
@@ -74,7 +87,6 @@ class ActorNetwork(object):
         with tf.variable_scope(self.scope + '-actor'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-            
             split_array = []
             for i in range(self.s_dim[0]):
                 tmp = tf.reshape(inputs[:, i:i+1, :], (-1, self.s_dim[1], 1))
@@ -87,7 +99,6 @@ class ActorNetwork(object):
                 flattern = tflearn.flatten(split)
                 split_array.append(flattern)
             dense_net_0 = tflearn.merge(split_array, 'concat')
-            
             dense_net_0 = tflearn.fully_connected(
                 dense_net_0, FEATURE_NUM, activation='relu')
             out = tflearn.fully_connected(
@@ -126,27 +137,14 @@ class ActorNetwork(object):
         self.sess.run(self.set_network_params_op, feed_dict={
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
-
-class RudderNetwork(object):
-    #SEQ_LEN = 20
-    def __init__(self, sess, state_dim, learning_rate, scope):
-        self.sess = sess
-        self.s_dim = state_dim
-        self.lr_rate = learning_rate
-        self.scope = scope
-        self.s_dim_queue = []
-    
-    def create_rudder_network(self):
-        pass
-
-       
+ 
 class CriticNetwork(object):
     """
     Input to the network is the state and action, output is V(s).
     On policy: the action must be obtained from the output of the Actor network.
     """
 
-    def __init__(self, sess, state_dim, learning_rate, scope, dual = None):
+    def __init__(self, sess, state_dim, learning_rate, scope, dual):
         self.sess = sess
         self.s_dim = state_dim
         self.lr_rate = learning_rate
