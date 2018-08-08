@@ -96,11 +96,11 @@ class ActorNetwork(object):
             apply_gradients(zip(self.actor_gradients, self.network_params))
 
     def create_actor_network(self):
-        with tf.variable_scope(self.scope + '-actor-begin'):
+        with tf.variable_scope(self.scope + '-actor'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
         dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
-        with tf.variable_scope(self.scope + '-actor-begin'):
+        with tf.variable_scope(self.scope + '-actor'):
             dense_net_0 = tflearn.fully_connected(
                 dense_net_0, FEATURE_NUM, activation='relu')
             out = tflearn.fully_connected(
@@ -205,7 +205,7 @@ class CriticNetwork(object):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
         dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
-        with tf.variable_scope(self.scope + '-critic-end'):
+        with tf.variable_scope(self.scope + '-critic'):
             dense_net_0 = tflearn.fully_connected(
                 dense_net_0, FEATURE_NUM, activation='relu')
             out = tflearn.fully_connected(dense_net_0, 1, activation='linear')

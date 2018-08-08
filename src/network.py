@@ -7,12 +7,12 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 #import tflearn
 
-RAND_RANGE = 1000
+RAND_RANGE = 10000
 
 
 class Zero(sabre.Abr):
-    S_INFO = 6
-    S_LEN = 20
+    S_INFO = 10
+    S_LEN = 10
     THROUGHPUT_NORM = 5 * 1024.0
     TIME_NORM = 10.0
    # A_DIM = len(VIDEO_BIT_RATE)
@@ -103,6 +103,8 @@ class Zero(sabre.Abr):
         # self.critic_gradient_batch.append(critic_gradient)
 
         self.history = []
+        self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
+        
 
     def get_quality_delay(self, segment_index):
         #print(self.buffer_size, sabre.manifest.segment_time, sabre.get_buffer_level(),sabre.manifest.segments[segment_index])
@@ -112,11 +114,17 @@ class Zero(sabre.Abr):
         state = self.state
         state = np.roll(state, -1, axis=1)
         state[0, -1] = throughput / Zero.THROUGHPUT_NORM
-        state[1, -1] = time / Zero.TIME_NORM
-        state[2, -1] = latency / 1000.0
-        state[3, -1] = quality / self.quality_len
-        state[4, -1] = rebuffer_time / Zero.TIME_NORM
-        state[5, -1] = manifest_len - segment_index
+        state[1, -1] = sabre.throughput / Zero.THROUGHPUT_NORM
+        state[2, -1] = time / Zero.TIME_NORM
+        state[3, -1] = latency / 1000.0
+        state[4, -1] = quality / self.quality_len
+        state[5, -1] = rebuffer_time / Zero.TIME_NORM
+        state[6, -1] = (manifest_len - segment_index) / manifest_len
+        state[7, 0:Zero.A_DIM] = sabre.manifest.bitrates / \
+            sabre.manifest.bitrates[-1]
+        _fft = np.fft.fft2(state[0])
+        state[8] = _fft.real
+        state[9] = _fft.imag
 
         self.state = state
         action_prob = self.actor.predict(
