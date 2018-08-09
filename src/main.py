@@ -8,26 +8,36 @@ log_file = open('zero.txt', 'w')
 NUM_AGENT = 2
 
 
-def battle(agent_result, LOG = False):
+def battle(agent_result, LOG=False):
     global log_file
     total_bitrate0, total_rebuffer0, _ = agent_result[0]
     total_bitrate1, total_rebuffer1, _ = agent_result[1]
     if LOG:
         log_file.write(str(total_bitrate0) + ',' + str(round(total_rebuffer0)) +
-                    ',' + str(total_bitrate1) + ',' + str(round(total_rebuffer1)))
+                       ',' + str(total_bitrate1) + ',' + str(round(total_rebuffer1)))
         log_file.write('\n')
         log_file.flush()
     if total_rebuffer0 < total_rebuffer1:
-        return [1, 0]
+        if total_bitrate0 > total_bitrate1:
+            return [1, -1]
+        elif total_bitrate0 == total_bitrate1:
+            return [1, -1]
+        else:
+            return [0, 0]
     elif total_rebuffer0 == total_rebuffer1:
         if total_bitrate0 > total_bitrate1:
-            return [1, 0]
+            return [1, -1]
         elif total_bitrate0 == total_bitrate1:
-            return [-1, -1]
+            return [0, 0]
         else:
-            return [0, 1]
+            return [-1, 1]
     else:
-        return [0, 1]
+        if total_bitrate0 > total_bitrate1:
+            return [0, 0]
+        elif total_bitrate0 == total_bitrate1:
+            return [-1, 1]
+        else:
+            return [-1, 1]
 
 
 def main():
@@ -51,24 +61,28 @@ def main():
                     (total_bitrate, total_rebuffer, total_smoothness))
             agent_reward = []
             for _index in range(len(agent_list[0].quality_history)):
-                agent_reward.append(battle([agent_list[0].quality_history[_index], agent_list[-1].quality_history[_index]]))
+                agent_reward.append(battle(
+                    [agent_list[0].quality_history[_index], agent_list[-1].quality_history[_index]]))
             agent_reward = np.array(agent_reward)
-            _tmp[np.argmax(battle(agent_result, True))] += 1
+            tmp_battle = battle(agent_result, True)
+            if tmp_battle[0] != 0:
+                _tmp[np.argmax(battle(agent_result, True))] += 1
             _tmp[-1] += 1
             for _index, _agent in enumerate(agent_list):
-                _agent.push(agent_reward[:,_index])
+                _agent.push(agent_reward[:, _index])
             _trace_result.append(agent_result)
         _clear = np.argmax(_tmp[0:-1])
         _buffer = agent_list[_clear].pull()
         for p in range(len(agent_list)):
-            if p != _clear:
-                agent_list[p].learn()
-                #agent_list[p].teach(_buffer)
-                # agent_list[p].learn()
+            # if p != _clear:
+            agent_list[p].learn()
+            # agent_list[p].teach(_buffer)
+            # agent_list[p].learn()
         for _agent in agent_list:
             _agent.clear()
         print(_tracepool.battle(_trace_result))
-        print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%')
+        print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%',
+              ',', round(_tmp[1] * 100.0 / _tmp[-1], 2), '%')
         log_file.write('\n')
         log_file.flush()
 

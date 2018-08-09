@@ -43,7 +43,8 @@ class tracepool(object):
             for _trace_index in range(len(self.get_list())):
                 res = self._battle(
                     [agent_result[_trace_index][index], self.sample_list[_index][_trace_index]])
-                tmp[np.argmax(res)] += 1
+                if res != 0:
+                    tmp[np.argmax(res)] += 1
                 tmp[-1] += 1
             ret.append(round(tmp[0] * 100.0 / tmp[-1], 2))
         return ret
@@ -52,7 +53,12 @@ class tracepool(object):
         total_bitrate0, total_rebuffer0, _ = agent_result[0]
         total_bitrate1, total_rebuffer1, _ = agent_result[1]
         if total_rebuffer0 < total_rebuffer1:
-            return [1, -1]
+            if total_bitrate0 > total_bitrate1:
+                return [1, -1]
+            elif total_bitrate0 == total_bitrate1:
+                return [1, -1]
+            else:
+                return [0, 0]
         elif total_rebuffer0 == total_rebuffer1:
             if total_bitrate0 > total_bitrate1:
                 return [1, -1]
@@ -61,4 +67,9 @@ class tracepool(object):
             else:
                 return [-1, 1]
         else:
-            return [-1, 1]
+            if total_bitrate0 > total_bitrate1:
+                return [0, 0]
+            elif total_bitrate0 == total_bitrate1:
+                return [-1, 1]
+            else:
+                return [-1, 1]
