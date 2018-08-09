@@ -19,39 +19,39 @@ def battle(agent_result, LOG=False):
         log_file.flush()
     if total_rebuffer0 < total_rebuffer1:
         if total_bitrate0 > total_bitrate1:
-            return [1, -1]
+            return [1, 0]
         elif total_bitrate0 == total_bitrate1:
-            return [1, -1]
+            return [1, 0]
         else:
             _cof0 = total_rebuffer0 / total_bitrate0
             _cof1 = total_rebuffer1 / total_bitrate1
             if _cof0 > _cof1:
-                return [-1, 1]
+                return [0, 1]
             elif _cof0 == _cof1:
                 return [0, 0]
             else:
-                return [1, -1]
+                return [1, 0]
     elif total_rebuffer0 == total_rebuffer1:
         if total_bitrate0 > total_bitrate1:
-            return [1, -1]
+            return [1, 0]
         elif total_bitrate0 == total_bitrate1:
             return [0, 0]
         else:
-            return [-1, 1]
+            return [0, 1]
     else:
         if total_bitrate0 > total_bitrate1:
             _cof0 = total_rebuffer0 / total_bitrate0
             _cof1 = total_rebuffer1 / total_bitrate1
             if _cof0 > _cof1:
-                return [-1, 1]
+                return [0, 1]
             elif _cof0 == _cof1:
                 return [0, 0]
             else:
-                return [1, -1]
+                return [1, 0]
         elif total_bitrate0 == total_bitrate1:
-            return [-1, 1]
+            return [0, 1]
         else:
-            return [-1, 1]
+            return [0, 1]
 
 
 def main():
