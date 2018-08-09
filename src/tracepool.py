@@ -2,6 +2,7 @@ import os
 import numpy as np
 import sabre
 
+ALPHA = 4.3
 
 class tracepool(object):
     def __init__(self, workdir='./traces', ratio=0.1):
@@ -43,7 +44,7 @@ class tracepool(object):
             for _trace_index in range(len(self.get_list())):
                 res = self._battle(
                     [agent_result[_trace_index][index], self.sample_list[_index][_trace_index]])
-                if res != 0:
+                if res[0] != 0:
                     tmp[np.argmax(res)] += 1
                 tmp[-1] += 1
             ret.append(round(tmp[0] * 100.0 / tmp[-1], 2))
@@ -58,7 +59,14 @@ class tracepool(object):
             elif total_bitrate0 == total_bitrate1:
                 return [1, -1]
             else:
-                return [0, 0]
+                _cof0 = total_rebuffer0 / total_bitrate0
+                _cof1 = total_rebuffer1 / total_bitrate1
+                if _cof0 > _cof1:
+                    return [-1, 1]
+                elif _cof0 == _cof1:
+                    return [0, 0]
+                else:
+                    return [1, -1]
         elif total_rebuffer0 == total_rebuffer1:
             if total_bitrate0 > total_bitrate1:
                 return [1, -1]
@@ -68,7 +76,14 @@ class tracepool(object):
                 return [-1, 1]
         else:
             if total_bitrate0 > total_bitrate1:
-                return [0, 0]
+                _cof0 = total_rebuffer0 / total_bitrate0
+                _cof1 = total_rebuffer1 / total_bitrate1
+                if _cof0 > _cof1:
+                    return [-1, 1]
+                elif _cof0 == _cof1:
+                    return [0, 0]
+                else:
+                    return [1, -1]
             elif total_bitrate0 == total_bitrate1:
                 return [-1, 1]
             else:
