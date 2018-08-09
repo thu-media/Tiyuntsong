@@ -123,6 +123,8 @@ class Zero(sabre.Abr):
         # print(sabre.log_history[-1],sabre.throughput)
         if segment_index != 0:
             self.quality_history.append((sabre.played_bitrate, sabre.rebuffer_time, sabre.total_bitrate_change))
+        if segment_index < 0:
+            return
         manifest_len = len(sabre.manifest.segments)
         time, throughput, latency, quality, _ = sabre.log_history[-1]
         state = self.state
