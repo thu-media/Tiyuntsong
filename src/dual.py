@@ -22,14 +22,14 @@ class DualNetwork(object):
             for i in range(s_dim[0]):
                 tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
                 split = tflearn.conv_1d(
-                    tmp, FEATURE_NUM // 4, KERNEL, activation='relu')
-                split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.conv_1d(
-                    tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
-                split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.conv_1d(
                     tmp, FEATURE_NUM, KERNEL, activation='relu')
-                #split = tflearn.avg_pool_1d(split, 2)
+                # split = tflearn.avg_pool_1d(split, 2)
+                # split = tflearn.conv_1d(
+                #     tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
+                # split = tflearn.avg_pool_1d(split, 2)
+                # split = tflearn.conv_1d(
+                #     tmp, FEATURE_NUM, KERNEL, activation='relu')
+                # #split = tflearn.avg_pool_1d(split, 2)
                 flattern = tflearn.flatten(split)
                 split_array.append(flattern)
             out = tflearn.merge(split_array, 'concat')

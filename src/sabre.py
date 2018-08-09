@@ -1790,6 +1790,7 @@ def execute_model(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_
             throughput_history.push(download_time, t, l)
 
     playout_buffer()
+    abr.get_quality_delay(-1)
     return played_bitrate, rebuffer_time, total_bitrate_change
 
 if __name__ == '__main__':

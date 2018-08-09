@@ -14,7 +14,8 @@ class Zero(sabre.Abr):
     S_INFO = 10
     S_LEN = 10
     THROUGHPUT_NORM = 5 * 1024.0
-    TIME_NORM = 10.0
+    BITRATE_NORM = 8 * 1024.0
+    TIME_NORM = 1000.0
    # A_DIM = len(VIDEO_BIT_RATE)
     ACTOR_LR_RATE = 1e-4
     CRITIC_LR_RATE = 1e-3
@@ -43,6 +44,7 @@ class Zero(sabre.Abr):
                                         learning_rate=Zero.CRITIC_LR_RATE, scope=scope, dual=self.dual)
         self.sess.run(tf.global_variables_initializer())
         self.history = []
+        self.quality_history = []
         self.replay_buffer = []
         # self.s_batch = [np.zeros((Zero.S_INFO, Zero.S_LEN))]
         # action_vec = np.zeros(Zero.A_DIM)
@@ -91,14 +93,16 @@ class Zero(sabre.Abr):
         return self.replay_buffer
 
     def push(self, reward):
+        #print(len(reward))
         s_batch, a_batch, r_batch = [], [], []
+        _index = 0
         for (state, action) in self.history:
             s_batch.append(state)
             action_vec = np.zeros(Zero.A_DIM)
             action_vec[action] = 1
             a_batch.append(action_vec)
-            r_batch.append(0)
-        r_batch[-1] = reward
+            r_batch.append(reward[_index])
+            _index += 1
         self.replay_buffer.append((s_batch, a_batch, r_batch))
         # actor_gradient, critic_gradient, td_batch = \
         #     a3c.compute_gradients(s_batch=np.stack(self.s_batch),
@@ -111,21 +115,24 @@ class Zero(sabre.Abr):
         # self.critic_gradient_batch.append(critic_gradient)
 
         self.history = []
+        self.quality_history = []
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
 
     def get_quality_delay(self, segment_index):
         #print(self.buffer_size, sabre.manifest.segment_time, sabre.get_buffer_level(),sabre.manifest.segments[segment_index])
         # print(sabre.log_history[-1],sabre.throughput)
+        if segment_index != 0:
+            self.quality_history.append((sabre.played_bitrate, sabre.rebuffer_time, sabre.total_bitrate_change))
         manifest_len = len(sabre.manifest.segments)
-        time, throughput, latency, quality, rebuffer_time = sabre.log_history[-1]
+        time, throughput, latency, quality, _ = sabre.log_history[-1]
         state = self.state
         state = np.roll(state, -1, axis=1)
         state[0, -1] = throughput / Zero.THROUGHPUT_NORM
-        state[1, -1] = sabre.throughput / Zero.THROUGHPUT_NORM
-        state[2, -1] = time / Zero.TIME_NORM
-        state[3, -1] = latency / 1000.0
-        state[4, -1] = quality / self.quality_len
-        state[5, -1] = rebuffer_time / Zero.TIME_NORM
+        state[1, -1] = time / Zero.TIME_NORM
+        state[2, -1] = latency / Zero.TIME_NORM
+        state[3, -1] = quality / self.quality_len
+        state[4, -1] = sabre.played_bitrate / Zero.BITRATE_NORM
+        state[5, -1] = sabre.rebuffer_time / Zero.TIME_NORM
         state[6, -1] = (manifest_len - segment_index) / manifest_len
         state[7, 0:Zero.A_DIM] = np.array(sabre.manifest.bitrates /
                                           np.max(sabre.manifest.bitrates))
