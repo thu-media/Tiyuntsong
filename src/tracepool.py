@@ -44,8 +44,8 @@ class tracepool(object):
             for _trace_index in range(len(self.get_list())):
                 res = self._battle(
                     [agent_result[_trace_index][index], self.sample_list[_index][_trace_index]])
-                if res[0] != 0:
-                    tmp[np.argmax(res)] += 1
+                #if res[0] != 0:
+                tmp[np.argmax(res)] += 1
                 tmp[-1] += 1
             ret.append(round(tmp[0] * 100.0 / tmp[-1], 2))
         return ret

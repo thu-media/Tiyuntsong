@@ -79,8 +79,8 @@ def main():
                     [agent_list[0].quality_history[_index], agent_list[-1].quality_history[_index]]))
             agent_reward = np.array(agent_reward)
             tmp_battle = battle(agent_result, True)
-            if tmp_battle[0] != 0:
-                _tmp[np.argmax(battle(agent_result, True))] += 1
+            #if tmp_battle[0] != 0:
+            _tmp[np.argmax(battle(agent_result, True))] += 1
             _tmp[-1] += 1
             for _index, _agent in enumerate(agent_list):
                 _agent.push(agent_reward[:, _index])
@@ -88,8 +88,8 @@ def main():
         _clear = np.argmax(_tmp[0:-1])
         _buffer = agent_list[_clear].pull()
         for p in range(len(agent_list)):
-            # if p != _clear:
-            agent_list[p].learn()
+            if p != _clear:
+                agent_list[p].learn()
             # agent_list[p].teach(_buffer)
             # agent_list[p].learn()
         for _agent in agent_list:
