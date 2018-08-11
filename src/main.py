@@ -60,7 +60,6 @@ def main():
     agent_list = []
     for p in range(NUM_AGENT):
         agent_list.append(Zero(str(p)))
-    _update, _clear = 0, 1
     _tracepool = tracepool(ratio=0.01)
     while True:
         _tmp = [0, 0, 0]
@@ -79,19 +78,18 @@ def main():
                     [agent_list[0].quality_history[_index], agent_list[-1].quality_history[_index]]))
             agent_reward = np.array(agent_reward)
             tmp_battle = battle(agent_result, True)
-            #if tmp_battle[0] != 0:
-            _tmp[np.argmax(battle(agent_result, True))] += 1
+            # if tmp_battle[0] != 0:
+            _tmp[np.argmax(tmp_battle)] += 1
             _tmp[-1] += 1
             for _index, _agent in enumerate(agent_list):
                 _agent.push(agent_reward[:, _index])
             _trace_result.append(agent_result)
-        _clear = np.argmax(_tmp[0:-1])
-        _buffer = agent_list[_clear].pull()
-        for p in range(len(agent_list)):
-            if p != _clear:
-                agent_list[p].learn()
-            # agent_list[p].teach(_buffer)
-            # agent_list[p].learn()
+        _delta_array = [_tmp[0] / _tmp[-1], _tmp[1] / _tmp[-1]]
+        for _agent, _d in zip(agent_list, _delta_array):
+            _agent.learn(_d)
+        # _clear = np.argmax(_tmp[0:-1])
+        # _update = np.argmin(_tmp[0:-1])
+        # agent_list[_update].teach(agent_list[_clear].pull())
         for _agent in agent_list:
             _agent.clear()
         print(_tracepool.battle(_trace_result))

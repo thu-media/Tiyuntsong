@@ -4,7 +4,7 @@ import tflearn
 
 
 GAMMA = 0.99
-ENTROPY_WEIGHT = 0.1
+ENTROPY_WEIGHT = 1.0
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
@@ -48,6 +48,9 @@ class ActorNetwork(object):
         self.s_dim = state_dim
         self.a_dim = action_dim
         self.lr_rate = learning_rate
+        self.basic_entropy = ENTROPY_WEIGHT
+        # self.sess.run(self.lr_rate, feed_dict={
+        #              self.lr_rate: self.basic_learning_rate})
         self.scope = scope
         self.dual = dual
 
@@ -75,6 +78,7 @@ class ActorNetwork(object):
 
         # This gradient will be provided by the critic network
         self.act_grad_weights = tf.placeholder(tf.float32, [None, 1])
+        self.entropy = tf.placeholder(tf.float32)
 
         self.loss = tflearn.objectives.softmax_categorical_crossentropy(
             self.out, self.y_)
@@ -94,8 +98,8 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
-                                                         tf.log(self.out + ENTROPY_EPS)))
+            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
+                                                       tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
         self.actor_gradients = tf.gradients(self.obj, self.network_params)
@@ -129,11 +133,14 @@ class ActorNetwork(object):
             self.inputs: inputs
         })
 
-    def get_gradients(self, inputs, acts, act_grad_weights):
+    def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0):
+        _entropy = -self.basic_entropy * \
+            np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.acts: acts,
-            self.act_grad_weights: act_grad_weights
+            self.act_grad_weights: act_grad_weights,
+            self.entropy: _entropy
         })
 
     def apply_gradients(self, actor_gradients):
@@ -262,10 +269,10 @@ class CriticNetwork(object):
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
 
-    def teach(self, state, action):
-        return self.sess.run(self.teach, feed_dict={
-            self.inputs: state, self.y_: action
-        })
+    # def teach(self, state, action):
+    #     return self.sess.run(self.teach, feed_dict={
+    #         self.inputs: state, self.y_: action
+    #     })
 
 
 class GANNetwork(object):
@@ -306,7 +313,7 @@ class GANNetwork(object):
             return inputs, out
 
 
-def compute_gradients(s_batch, a_batch, r_batch, actor, critic):
+def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
     """
     batch of s, a, r is from samples in a sequence
     the format is in np.array([batch_size, s/a/r_dim])
@@ -329,7 +336,7 @@ def compute_gradients(s_batch, a_batch, r_batch, actor, critic):
 
     td_batch = R_batch - v_batch
 
-    actor_gradients = actor.get_gradients(s_batch, a_batch, td_batch)
+    actor_gradients = actor.get_gradients(s_batch, a_batch, td_batch, lr_ratio)
     critic_gradients = critic.get_gradients(s_batch, R_batch)
 
     return actor_gradients, critic_gradients, td_batch

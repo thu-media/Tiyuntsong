@@ -9,13 +9,14 @@ ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
 
+
 class ActorNetwork(object):
     """
     Input to the network is the state, output is the distribution
     of all actions.
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual = None):
+    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual=None):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
@@ -74,20 +75,23 @@ class ActorNetwork(object):
         with tf.variable_scope(self.scope + '-actor'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-            
+
             split_array = []
             for i in range(self.s_dim[0]):
                 tmp = tf.reshape(inputs[:, i:i+1, :], (-1, self.s_dim[1], 1))
-                split = tflearn.conv_1d(tmp, FEATURE_NUM // 4, KERNEL, activation='relu')
+                split = tflearn.conv_1d(
+                    tmp, FEATURE_NUM // 4, KERNEL, activation='relu')
                 split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.conv_1d(tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
+                split = tflearn.conv_1d(
+                    tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
                 split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.conv_1d(tmp, FEATURE_NUM, KERNEL, activation='relu')
+                split = tflearn.conv_1d(
+                    tmp, FEATURE_NUM, KERNEL, activation='relu')
                 #split = tflearn.avg_pool_1d(split, 2)
                 flattern = tflearn.flatten(split)
                 split_array.append(flattern)
             dense_net_0 = tflearn.merge(split_array, 'concat')
-            
+
             dense_net_0 = tflearn.fully_connected(
                 dense_net_0, FEATURE_NUM, activation='relu')
             out = tflearn.fully_connected(
@@ -127,6 +131,7 @@ class ActorNetwork(object):
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
 
+
 class RudderNetwork(object):
     #SEQ_LEN = 20
     def __init__(self, sess, state_dim, learning_rate, scope):
@@ -135,18 +140,18 @@ class RudderNetwork(object):
         self.lr_rate = learning_rate
         self.scope = scope
         self.s_dim_queue = []
-    
+
     def create_rudder_network(self):
         pass
 
-       
+
 class CriticNetwork(object):
     """
     Input to the network is the state and action, output is V(s).
     On policy: the action must be obtained from the output of the Actor network.
     """
 
-    def __init__(self, sess, state_dim, learning_rate, scope, dual = None):
+    def __init__(self, sess, state_dim, learning_rate, scope, dual=None):
         self.sess = sess
         self.s_dim = state_dim
         self.lr_rate = learning_rate
@@ -191,20 +196,23 @@ class CriticNetwork(object):
         with tf.variable_scope(self.scope + '-critic'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-            
+
             split_array = []
             for i in range(self.s_dim[0]):
                 tmp = tf.reshape(inputs[:, i:i+1, :], (-1, self.s_dim[1], 1))
-                split = tflearn.conv_1d(tmp, FEATURE_NUM // 4, KERNEL, activation='relu')
+                split = tflearn.conv_1d(
+                    tmp, FEATURE_NUM // 4, KERNEL, activation='relu')
                 split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.conv_1d(tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
+                split = tflearn.conv_1d(
+                    tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
                 split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.conv_1d(tmp, FEATURE_NUM, KERNEL, activation='relu')
+                split = tflearn.conv_1d(
+                    tmp, FEATURE_NUM, KERNEL, activation='relu')
                 #split = tflearn.avg_pool_1d(split, 2)
                 flattern = tflearn.flatten(split)
                 split_array.append(flattern)
             dense_net_0 = tflearn.merge(split_array, 'concat')
-            
+
             dense_net_0 = tflearn.fully_connected(
                 dense_net_0, FEATURE_NUM, activation='relu')
             out = tflearn.fully_connected(dense_net_0, 1, activation='linear')
