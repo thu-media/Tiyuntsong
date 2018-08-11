@@ -21,15 +21,15 @@ class DualNetwork(object):
             split_array = []
             for i in range(s_dim[0]):
                 tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
+                tmp = tflearn.batch_normalization(tmp)
                 split = tflearn.conv_1d(
                     tmp, FEATURE_NUM, KERNEL, activation='relu')
-                # split = tflearn.avg_pool_1d(split, 2)
-                # split = tflearn.conv_1d(
-                #     tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
-                # split = tflearn.avg_pool_1d(split, 2)
-                # split = tflearn.conv_1d(
-                #     tmp, FEATURE_NUM, KERNEL, activation='relu')
-                # #split = tflearn.avg_pool_1d(split, 2)
+                split = tflearn.avg_pool_1d(split, 2)
+                split = tflearn.batch_normalization(split)
+                split = tflearn.conv_1d(
+                    tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
+                #split = tflearn.avg_pool_1d(split, 2)
+                split = tflearn.batch_normalization(split)
                 flattern = tflearn.flatten(split)
                 split_array.append(flattern)
             out = tflearn.merge(split_array, 'concat')
@@ -83,7 +83,7 @@ class ActorNetwork(object):
         self.loss = tflearn.objectives.softmax_categorical_crossentropy(
             self.out, self.y_)
         self.teach_op = tf.train.AdamOptimizer(
-            learning_rate=self.lr_rate).minimize(self.loss)
+            learning_rate=self.lr_rate * 0.1).minimize(self.loss)
 
         # Compute the objective (log action_vector and entropy)
         self.obj = tf.reduce_sum(
@@ -134,8 +134,8 @@ class ActorNetwork(object):
         })
 
     def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0):
-        _entropy = -self.basic_entropy * \
-            np.log(lr_ratio + ENTROPY_EPS)
+        _entropy = self.basic_entropy * \
+            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.acts: acts,

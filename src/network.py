@@ -22,11 +22,11 @@ class Zero(sabre.Abr):
     A_DIM = 10
     GRADIENT_BATCH_SIZE = 32
 
-    def __init__(self, scope):
-        # self.gp = config['gp']
-        # self.buffer_size = config['buffer_size']
-        # self.abr_osc = config['abr_osc']
-        # self.abr_basic = config['abr_basic']
+    def __init__(self, config, scope):
+        self.gp = config['gp']
+        self.buffer_size = config['buffer_size']
+        self.abr_osc = config['abr_osc']
+        self.abr_basic = config['abr_basic']
         self.quality = 0
         #self.last_quality = 0
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
@@ -110,7 +110,8 @@ class Zero(sabre.Abr):
             r_batch.append(reward[_index])
             _index += 1
         #if win
-        r_batch[-1] = reward[-1] * 10.0
+        #experiment failed: no improvement.
+        #r_batch[-1] = reward[-1] * 10.0
         self.replay_buffer.append((s_batch, a_batch, r_batch))
         # actor_gradient, critic_gradient, td_batch = \
         #     a3c.compute_gradients(s_batch=np.stack(self.s_batch),
