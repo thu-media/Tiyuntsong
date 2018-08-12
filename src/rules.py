@@ -1,4 +1,5 @@
 import numpy as np
+import elo
 
 
 def rules(agent_results, threshold=0.01 * 198 * 3000):
@@ -19,6 +20,13 @@ def rules(agent_results, threshold=0.01 * 198 * 3000):
     _tmp[_win] = 1.0
     return _tmp
 
+def update_elo(i0, i1, res):
+    if res[0] > 0:
+        r0,r1 = elo.rate_1vs1(i0,i1)
+    else:
+        r0,r1 = elo.rate_1vs1(i1,i0)
+    return r0,r1
+    
 
 def basic_rules(agent_result, log_file, LOG=False):
     total_bitrate0, total_rebuffer0, _ = agent_result[0]

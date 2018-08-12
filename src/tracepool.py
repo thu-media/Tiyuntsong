@@ -1,8 +1,7 @@
 import os
 import numpy as np
 import sabre
-from rules import rules
-import elo
+from rules import rules,update_elo
 ALPHA = 4.3
 
 
@@ -17,9 +16,11 @@ class tracepool(object):
             for l in os.listdir(self.work_dir + '/' + p):
                 if np.random.rand() <= ratio:
                     self.trace_list.append(self.work_dir + '/' + p + '/' + l)
-
+        self.elo_score = []
+        
         for p in self.abr_list:
             self.sample_list.append([])
+            self.elo_score.append(1000.0)
         self.sample()
 
     def sample(self):
@@ -29,15 +30,20 @@ class tracepool(object):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))
         _battle = []
-        for _index in range(len(self.abr_list)):
-            tmp = [0, 0, 0]
-            for _trace_index in range(len(self.get_list())):
-                res = rules([self.sample_list[2][_trace_index],
-                             self.sample_list[_index][_trace_index]])
-                tmp[np.argmax(res)] += 1
-                tmp[-1] += 1
-            _battle.append(round(tmp[0] * 100.0 / tmp[-1], 2))
-        print(_battle)
+        
+        for _index0 in range(len(self.abr_list)):
+            for _index in range(len(self.abr_list)):
+                tmp = [0, 0, 0]
+                for _trace_index in range(len(self.get_list())):
+                    res = rules([self.sample_list[_index0][_trace_index],
+                                self.sample_list[_index][_trace_index]])
+                    if _index != _index0
+                        self.elo_score[_index0], self.elo_score[_index] = update_elo(self.elo_score[_index0], self.elo_score[_index],res)
+                    tmp[np.argmax(res)] += 1
+                    tmp[-1] += 1
+                _battle.append(round(tmp[0] * 100.0 / tmp[-1], 2))
+            print(_index0, _battle)
+        print(self.elo_score)
 
     def get_list(self):
         return self.trace_list
