@@ -24,12 +24,15 @@ class DualNetwork(object):
                 tmp = tflearn.batch_normalization(tmp)
                 split = tflearn.conv_1d(
                     tmp, FEATURE_NUM, KERNEL, activation='relu')
-                split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.batch_normalization(split)
-                split = tflearn.conv_1d(
-                    tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
                 #split = tflearn.avg_pool_1d(split, 2)
-                split = tflearn.batch_normalization(split)
+                #split = tflearn.batch_normalization(split)
+                # split = tflearn.conv_1d(
+                #     tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
+                # split = tflearn.avg_pool_1d(split, 2)
+                # split = tflearn.batch_normalization(split)
+                # split = tflearn.conv_1d(
+                #     tmp, FEATURE_NUM, KERNEL, activation='relu')
+                # #split = tflearn.avg_pool_1d(split, 2)
                 flattern = tflearn.flatten(split)
                 split_array.append(flattern)
             out = tflearn.merge(split_array, 'concat')
