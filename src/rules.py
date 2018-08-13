@@ -20,13 +20,25 @@ def rules(agent_results, threshold=0.01 * 198 * 3000):
     _tmp[_win] = 1.0
     return _tmp
 
-def update_elo(i0, i1, res):
+
+def update_elo(elo_list, i0, i1, res):
     if res[0] > 0:
-        r0,r1 = elo.rate_1vs1(i0,i1)
+        elo_list[i0], elo_list[i1] = elo.rate_1vs1(elo_list[i0], elo_list[i1])
     else:
-        r0,r1 = elo.rate_1vs1(i1,i0)
-    return r0,r1
-    
+        elo_list[i1], elo_list[i0] = elo.rate_1vs1(elo_list[i1], elo_list[i0])
+    return elo_list
+
+
+def update_elo_2(agent_list, elo_list, i0, i1, res):
+    #print(agent_list, elo_list)
+    if res[0] > 0:
+        agent_list[i0], _ = elo.rate_1vs1(
+            agent_list[i0], elo_list[i1])
+    else:
+        _, agent_list[i0] = elo.rate_1vs1(
+            elo_list[i1], agent_list[i0])
+    return agent_list
+
 
 def basic_rules(agent_result, log_file, LOG=False):
     total_bitrate0, total_rebuffer0, _ = agent_result[0]

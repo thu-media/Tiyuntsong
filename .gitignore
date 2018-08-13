@@ -1,3 +1,2 @@
-mmsys18/tmp
-mmsys18/stats
-mmsys18/figures
+src/*.txt
+src/__pycache__

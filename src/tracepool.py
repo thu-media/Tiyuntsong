@@ -1,23 +1,22 @@
 import os
 import numpy as np
 import sabre
-from rules import rules,update_elo
-ALPHA = 4.3
+from rules import rules, update_elo, update_elo_2
 
 
 class tracepool(object):
     def __init__(self, workdir='./traces', ratio=0.1):
         self.work_dir = workdir
         self.trace_list = []
-        self.abr_list = [sabre.ThroughputRule, sabre.Bola,
-                         sabre.BolaEnh, sabre.DynamicDash, sabre.Dynamic]
+        self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
+                         sabre.Dynamic, sabre.Bola, sabre.BolaEnh]
         self.sample_list = []
         for p in os.listdir(self.work_dir):
             for l in os.listdir(self.work_dir + '/' + p):
                 if np.random.rand() <= ratio:
                     self.trace_list.append(self.work_dir + '/' + p + '/' + l)
         self.elo_score = []
-        
+
         for p in self.abr_list:
             self.sample_list.append([])
             self.elo_score.append(1000.0)
@@ -29,43 +28,51 @@ class tracepool(object):
             for _index, _abr in enumerate(self.abr_list):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))
-        _battle = []
-        
+
         for _index0 in range(len(self.abr_list)):
+            _battle = []
             for _index in range(len(self.abr_list)):
                 tmp = [0, 0, 0]
                 for _trace_index in range(len(self.get_list())):
                     res = rules([self.sample_list[_index0][_trace_index],
-                                self.sample_list[_index][_trace_index]])
-                    if _index != _index0
-                        self.elo_score[_index0], self.elo_score[_index] = update_elo(self.elo_score[_index0], self.elo_score[_index],res)
+                                 self.sample_list[_index][_trace_index]])
+                    if _index0 < _index:
+                        self.elo_score = update_elo(self.elo_score,
+                                                    _index0, _index, res)
                     tmp[np.argmax(res)] += 1
                     tmp[-1] += 1
                 _battle.append(round(tmp[0] * 100.0 / tmp[-1], 2))
             print(_index0, _battle)
+        log_file = open('elo_baseline.txt','w')
+        for p in self.elo_score:
+            log_file.write(str(p) + ' ')
+        log_file.close()
         print(self.elo_score)
 
     def get_list(self):
         return self.trace_list
 
-    def battle(self, agent_result):
+    def battle(self, agent_elo, agent_result):
         ret = []
         for p in range(len(agent_result[0])):
-            ret.append(self._battle_index(agent_result, p))
-        return ret
+            res, agent_elo = self._battle_index(agent_elo, agent_result, p)
+            ret.append(res)
+        return ret, agent_elo
 
-    def _battle_index(self, agent_result, index):
+    def _battle_index(self, agent_elo, agent_result, index):
         ret = []
         for _index in range(len(self.abr_list)):
             tmp = [0, 0, 0]
             for _trace_index in range(len(self.get_list())):
                 res = rules(
                     [agent_result[_trace_index][index], self.sample_list[_index][_trace_index]])
+                agent_elo = update_elo_2(
+                    agent_elo, self.elo_score, index, _index, res)
                 # if res[0] != 0:
                 tmp[np.argmax(res)] += 1
                 tmp[-1] += 1
             ret.append(round(tmp[0] * 100.0 / tmp[-1], 2))
-        return ret
+        return ret, agent_elo
 
     # def _battle(self, agent_result):
     #     total_bitrate0, total_rebuffer0, _ = agent_result[0]

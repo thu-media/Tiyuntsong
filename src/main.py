@@ -7,11 +7,15 @@ from tqdm import tqdm
 from rules import rules
 NUM_AGENT = 2
 
+
 def main():
     log_file = open('zero.txt', 'w')
+    elo_file = open('elo.txt', 'w')
     agent_list = []
+    agent_elo = []
     for p in range(NUM_AGENT):
         agent_list.append(Zero(str(p)))
+        agent_elo.append(1000.0)
     _tracepool = tracepool(ratio=0.01)
     while True:
         _tmp = [0, 0, 0]
@@ -26,14 +30,15 @@ def main():
                     (total_bitrate, total_rebuffer, total_smoothness))
             agent_reward = []
             for _index in range(len(agent_list[0].quality_history)):
-                agent_reward.append(rules(
-                    [agent_list[0].quality_history[_index], agent_list[-1].quality_history[_index]]))
+                res = rules([agent_list[0].quality_history[_index],
+                             agent_list[-1].quality_history[_index]])
+                agent_reward.append(res)
             agent_reward = np.array(agent_reward)
             tmp_battle = rules(agent_result)
             total_bitrate0, total_rebuffer0, _ = agent_result[0]
             total_bitrate1, total_rebuffer1, _ = agent_result[1]
             log_file.write(str(total_bitrate0) + ',' + str(round(total_rebuffer0)) +
-                        ',' + str(total_bitrate1) + ',' + str(round(total_rebuffer1)))
+                           ',' + str(total_bitrate1) + ',' + str(round(total_rebuffer1)))
             log_file.write('\n')
             log_file.flush()
             _tmp[np.argmax(tmp_battle)] += 1
@@ -49,7 +54,16 @@ def main():
         # agent_list[_update].teach(agent_list[_clear].pull())
         for _agent in agent_list:
             _agent.clear()
-        print(_tracepool.battle(_trace_result))
+        
+        agent_elo = []
+        for p in range(NUM_AGENT):
+            agent_elo.append(1000.0)
+        _rate, agent_elo = _tracepool.battle(agent_elo, _trace_result)
+        for p in agent_elo:
+            elo_file.write(str(p) + ' ')
+        elo_file.write('\n')
+        elo_file.flush()
+        print(agent_elo)
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%',
               ',', round(_tmp[1] * 100.0 / _tmp[-1], 2), '%')
         log_file.write('\n')
