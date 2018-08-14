@@ -33,11 +33,7 @@ def read_history(filename='elo_baseline.txt'):
     return np.array(_tmpA)
 
 
-<<<<<<< HEAD
 def moving_average(data, alpha=0.6):
-=======
-def moving_average(data, alpha=0.93):
->>>>>>> d73c9cecf9fe92b2f038713c382365fd7c3841d4
     _tmp = []
     _val = data[0]
     for p in data:
@@ -45,11 +41,7 @@ def moving_average(data, alpha=0.93):
         _tmp.append(_val)
     return np.array(_tmp)
 
-<<<<<<< HEAD
 plt.switch_backend('Agg')
-=======
-
->>>>>>> d73c9cecf9fe92b2f038713c382365fd7c3841d4
 plt.rcParams['axes.labelsize'] = 24
 plt.rcParams['axes.labelweight'] = 'bold'
 font = {'size': 12}
