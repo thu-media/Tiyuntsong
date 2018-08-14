@@ -4,7 +4,7 @@ import tflearn
 
 
 GAMMA = 0.99
-ENTROPY_WEIGHT = 0.1
+ENTROPY_WEIGHT = 1.0
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
@@ -16,26 +16,103 @@ class DualNetwork(object):
         self.scope = scope
         self.reuse = False
 
+    def attention(self, inputs, attention_size):
+        # the length of sequences processed in the antecedent RNN layer
+        inputs = tf.stack(inputs, axis=1)
+        sequence_length = inputs.get_shape()[1].value
+        # hidden size of the RNN layer
+        hidden_size = inputs.get_shape()[2].value
+
+        # Attention mechanism
+        W_omega = tf.Variable(tf.random_normal(
+            [hidden_size, attention_size], stddev=0.1))
+        b_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+        u_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+
+        v = tf.tanh(tf.matmul(tf.reshape(
+            inputs, [-1, hidden_size]), W_omega) + tf.reshape(b_omega, [1, -1]))
+        vu = tf.matmul(v, tf.reshape(u_omega, [-1, 1]))
+        exps = tf.reshape(tf.exp(vu), [-1, sequence_length])
+        alphas = exps / tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])
+        # Output of Bi-RNN is reduced with attention vector
+        output = tf.reduce_sum(
+            inputs * tf.reshape(alphas, [-1, sequence_length, 1]), 1)
+        return output, alphas
+
+    def CNN_Core(self, x, reuse=False):
+        with tf.variable_scope(self.scope + '-cnn_core', reuse=reuse):
+            tmp = tflearn.conv_1d(
+                x, FEATURE_NUM // 4, KERNEL, activation='relu')
+            tmp = tflearn.batch_normalization(tmp)
+            tmp = tflearn.flatten(tmp)
+            return tmp
+
     def create_dual_network(self, inputs, s_dim):
         with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
-            split_array = []
-            for i in range(s_dim[0]):
-                tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
-                tmp = tflearn.batch_normalization(tmp)
-                split = tflearn.conv_1d(
-                    tmp, FEATURE_NUM, KERNEL, activation='relu')
-                #split = tflearn.avg_pool_1d(split, 2)
-                #split = tflearn.batch_normalization(split)
-                # split = tflearn.conv_1d(
-                #     tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
-                # split = tflearn.avg_pool_1d(split, 2)
-                # split = tflearn.batch_normalization(split)
-                # split = tflearn.conv_1d(
-                #     tmp, FEATURE_NUM, KERNEL, activation='relu')
-                # #split = tflearn.avg_pool_1d(split, 2)
-                flattern = tflearn.flatten(split)
-                split_array.append(flattern)
+            #print(inputs[:, 7, :].get_shape().as_list())
+            _array = []
+            for i in range(s_dim[1]):
+                if i == 0:
+                    _tmp = self.CNN_Core(inputs[:, :, i:i+1], reuse=False)
+                else:
+                    _tmp = self.CNN_Core(inputs[:, :, i:i+1], reuse=True)
+                _array.append(_tmp)
+            lstm_net = tf.stack(_array, axis=1)
+            _h = tflearn.lstm(lstm_net, FEATURE_NUM, return_seq=True)
+            _h = tflearn.lstm(_h, FEATURE_NUM, return_seq=True)
+            _out_lstm, _alphas = self.attention(_h, FEATURE_NUM)
+            split_array = [_out_lstm]
+            # fft 1d-cnn
+            # for i in range(8, 10):
+            #     tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
+            #     split = tflearn.conv_1d(
+            #         tmp, FEATURE_NUM, KERNEL, activation='relu')
+            #     split = tflearn.batch_normalization(split)
+            #     split = tflearn.fully_connected(
+            #         split, FEATURE_NUM, activation='relu')
+            #     #flattern = tf.reduce_mean(split, 1)
+            #     split_array.append(split)
+            # final
+            # split = tflearn.fully_connected(
+            #    inputs[:, 7, :], FEATURE_NUM, activation='relu')
+            split_array.append(inputs[:, 7, :])
             out = tflearn.merge(split_array, 'concat')
+            # net = tflearn.fully_connected(inputs, FEATURE_NUM, activation='relu')
+            # net = tflearn.batch_normalization(net)
+            # net = tflearn.fully_connected(net, FEATURE_NUM * 2, activation='relu')
+            # net = tflearn.batch_normalization(net)
+            # out = tflearn.fully_connected(net, FEATURE_NUM, activation='relu')
+            # inputs = tf.expand_dims(inputs, -1)
+            # net = tflearn.conv_2d(inputs, FEATURE_NUM,
+            #                       KERNEL, activation='relu')
+            # net = tflearn.batch_normalization(net)
+            # net = tflearn.max_pool_2d(net, 2)
+            # net = tflearn.conv_2d(inputs, FEATURE_NUM * 2,
+            #                       KERNEL, activation='relu')
+            # net = tflearn.batch_normalization(net)
+            # net = tflearn.max_pool_2d(net, 2)
+            # net = tflearn.conv_2d(inputs, FEATURE_NUM * 4,
+            #                       KERNEL, activation='relu')
+            # net = tflearn.batch_normalization(net)
+            # out = tflearn.max_pool_2d(net, 2)
+            # split_array = []
+            # for i in range(s_dim[0]):
+            #     tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
+            #     tmp = tflearn.batch_normalization(tmp)
+            #     split = tflearn.conv_1d(
+            #         tmp, FEATURE_NUM, KERNEL, activation='relu')
+            #     #split = tflearn.avg_pool_1d(split, 2)
+            #     #split = tflearn.batch_normalization(split)
+            #     # split = tflearn.conv_1d(
+            #     #     tmp, FEATURE_NUM // 2, KERNEL, activation='relu')
+            #     # split = tflearn.avg_pool_1d(split, 2)
+            #     # split = tflearn.batch_normalization(split)
+            #     # split = tflearn.conv_1d(
+            #     #     tmp, FEATURE_NUM, KERNEL, activation='relu')
+            #     # #split = tflearn.avg_pool_1d(split, 2)
+            #     flattern = tflearn.flatten(split)
+            #     split_array.append(flattern)
+            # out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 
@@ -86,7 +163,7 @@ class ActorNetwork(object):
         self.loss = tflearn.objectives.softmax_categorical_crossentropy(
             self.out, self.y_)
         self.teach_op = tf.train.AdamOptimizer(
-            learning_rate=self.lr_rate * 0.1).minimize(self.loss)
+            learning_rate=self.lr_rate * 0.5).minimize(self.loss)
 
         # Compute the objective (log action_vector and entropy)
         self.obj = tf.reduce_sum(
@@ -101,7 +178,7 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
+            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
                                                        tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here

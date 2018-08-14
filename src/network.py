@@ -11,8 +11,8 @@ RAND_RANGE = 10000
 
 
 class Zero(sabre.Abr):
-    S_INFO = 10
-    S_LEN = 10
+    S_INFO = 8
+    S_LEN = 15
     THROUGHPUT_NORM = 5 * 1024.0
     BITRATE_NORM = 8 * 1024.0
     TIME_NORM = 1000.0
@@ -145,11 +145,12 @@ class Zero(sabre.Abr):
         state[4, -1] = sabre.played_bitrate / Zero.BITRATE_NORM
         state[5, -1] = sabre.rebuffer_time / Zero.TIME_NORM
         state[6, -1] = (manifest_len - segment_index) / manifest_len
+
         state[7, 0:Zero.A_DIM] = np.array(sabre.manifest.bitrates /
                                           np.max(sabre.manifest.bitrates))
-        _fft = np.fft.fft(state[0])
-        state[8] = _fft.real
-        state[9] = _fft.imag
+        #_fft = np.fft.fft(state[0])
+        #state[8] = _fft.real
+        #state[9] = _fft.imag
 
         self.state = state
         action_prob = self.actor.predict(

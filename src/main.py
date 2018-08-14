@@ -5,6 +5,7 @@ from tracepool import tracepool
 import numpy as np
 from tqdm import tqdm
 from rules import rules
+import os
 NUM_AGENT = 2
 
 
@@ -67,6 +68,7 @@ def main():
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%',
               ',', round(_tmp[1] * 100.0 / _tmp[-1], 2), '%')
         log_file.write('\n')
+        os.system('python draw.py')
         log_file.flush()
 
 
