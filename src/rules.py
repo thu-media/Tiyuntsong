@@ -54,14 +54,14 @@ def rules(agent_result):
             if _cof0 > _cof1:
                 return [0, 1]
             elif _cof0 == _cof1:
-                return [0, 0]
+                return [1, 0]
             else:
                 return [1, 0]
     elif total_rebuffer0 == total_rebuffer1:
         if total_bitrate0 > total_bitrate1:
             return [1, 0]
         elif total_bitrate0 == total_bitrate1:
-            return [0, 0]
+            return [1, 0]
         else:
             return [0, 1]
     else:
@@ -71,7 +71,7 @@ def rules(agent_result):
             if _cof0 > _cof1:
                 return [0, 1]
             elif _cof0 == _cof1:
-                return [0, 0]
+                return [1, 0]
             else:
                 return [1, 0]
         elif total_bitrate0 == total_bitrate1:
