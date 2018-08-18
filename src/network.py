@@ -83,8 +83,8 @@ class Zero(sabre.Abr):
             critic_gradient_batch.append(critic_gradient)
         #print('start learn')
         for i in range(len(actor_gradient_batch)):
-            self.actor.apply_gradients(actor_gradient_batch[i])
-            self.critic.apply_gradients(critic_gradient_batch[i])
+            self.actor.apply_gradients(actor_gradient_batch[i], lr_ratio=ratio)
+            self.critic.apply_gradients(critic_gradient_batch[i], lr_ratio=ratio)
 
         self.actor_gradient_batch = []
         self.critic_gradient_batch = []

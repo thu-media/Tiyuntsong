@@ -4,7 +4,7 @@ import tflearn
 
 
 GAMMA = 0.99
-ENTROPY_WEIGHT = 1.0
+ENTROPY_WEIGHT = 0.1
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
@@ -77,7 +77,8 @@ class ActorNetwork(object):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
-        self.lr_rate = learning_rate
+        #self.lr_rate = learning_rate
+        self.learning_rate = learning_rate
         self.basic_entropy = ENTROPY_WEIGHT
         # self.sess.run(self.lr_rate, feed_dict={
         #              self.lr_rate: self.basic_learning_rate})
@@ -108,6 +109,7 @@ class ActorNetwork(object):
 
         # This gradient will be provided by the critic network
         self.act_grad_weights = tf.placeholder(tf.float32, [None, 1])
+        self.lr_rate = tf.placeholder(tf.float32)
         self.entropy = tf.placeholder(tf.float32)
 
         self.loss = tflearn.objectives.softmax_categorical_crossentropy(
@@ -128,7 +130,7 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
+            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
                                                        tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
@@ -171,12 +173,17 @@ class ActorNetwork(object):
             self.acts: acts,
             self.act_grad_weights: act_grad_weights,
             self.entropy: _entropy
+            #self.lr_rate: _lr
         })
 
-    def apply_gradients(self, actor_gradients):
-        return self.sess.run(self.optimize, feed_dict={
-            i: d for i, d in zip(self.actor_gradients, actor_gradients)
-        })
+    def apply_gradients(self, actor_gradients, lr_ratio = 1.0):
+        _dict = {}
+        for i, d in zip(self.actor_gradients, actor_gradients):
+            _dict[i] = d
+        _lr = self.learning_rate * \
+            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        _dict[self.lr_rate] = _lr
+        return self.sess.run(self.optimize, feed_dict=_dict)
 
     def get_network_params(self):
         return self.sess.run(self.network_params)
@@ -214,7 +221,8 @@ class CriticNetwork(object):
     def __init__(self, sess, state_dim, learning_rate, scope, dual):
         self.sess = sess
         self.s_dim = state_dim
-        self.lr_rate = learning_rate
+        #self.lr_rate = learning_rate
+        self.learning_rate = learning_rate
         self.scope = scope
         self.dual = dual
 
@@ -226,6 +234,7 @@ class CriticNetwork(object):
             tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                               scope=self.scope + '-critic')
 
+        self.lr_rate = tf.placeholder(tf.float32)
         # Set all network parameters
         self.input_network_params = []
         for param in self.network_params:
@@ -286,10 +295,15 @@ class CriticNetwork(object):
             self.td_target: td_target
         })
 
-    def apply_gradients(self, critic_gradients):
-        return self.sess.run(self.optimize, feed_dict={
-            i: d for i, d in zip(self.critic_gradients, critic_gradients)
-        })
+    def apply_gradients(self, critic_gradients, lr_ratio = 1.0):
+        _dict = {}
+        for i, d in zip(self.critic_gradients, critic_gradients):
+            _dict[i] = d
+        
+        _lr = self.learning_rate * \
+            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        _dict[self.lr_rate] = _lr
+        return self.sess.run(self.optimize, feed_dict=_dict)
 
     def get_network_params(self):
         return self.sess.run(self.network_params)

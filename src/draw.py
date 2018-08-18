@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib.pyplot import plot, savefig
-from pykalman import KalmanFilter
+#from pykalman import KalmanFilter
 import sys
 
 LW = 4
@@ -33,7 +33,7 @@ def read_history(filename='elo_baseline.txt'):
     return np.array(_tmpA)
 
 
-def moving_average(data, alpha=0.6):
+def moving_average(data, alpha=0.9):
     _tmp = []
     _val = data[0]
     for p in data:
@@ -51,13 +51,14 @@ _a, _b = read_csv()
 _tmp = read_history()
 ax1.grid(True)
 ax1.set_title('elo')
-l4 = ax1.plot(_a, color='red', lw=LW, alpha=0.3)
+l4 = ax1.plot(_a, color='red', lw=LW, alpha=0.2)
 l4 = ax1.plot(moving_average(_a), color='red', lw=LW, label='A')
-l4 = ax1.plot(_b, color='blue', lw=LW, alpha=0.3)
+l4 = ax1.plot(_b, color='blue', lw=LW, alpha=0.2)
 l4 = ax1.plot(moving_average(_b), color='blue', lw=LW, label='B')
 _label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh']
+_color = ['darkred', 'darkblue', 'salmon', 'gray', 'pink']
 for index, p in enumerate(_tmp):
-    ax1.hlines(p, 0, len(_a), linestyles="dashed", label = _label[index])
+    ax1.hlines(p, 0, len(_a), linestyles="dashed", color = _color[index], label = _label[index], lw = LW)
 ax1.legend()
 savefig('elo.png')
 print 'done'

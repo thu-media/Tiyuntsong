@@ -5,12 +5,14 @@ from tracepool import tracepool
 import numpy as np
 from tqdm import tqdm
 from rules import rules
+from log import log
 import os
 NUM_AGENT = 2
 
 
 def main():
-    log_file = open('zero.txt', 'w')
+    _log = log('zero.txt')
+    #log_file = open('zero.txt', 'w')
     elo_file = open('elo.txt', 'w')
     agent_list = []
     agent_elo = []
@@ -22,7 +24,7 @@ def main():
         _tmp = [0, 0, 0]
         _state_stack, _reward_stack = [], []
         _trace_result = []
-        for _trace in tqdm(_tracepool.get_list()):
+        for _trace in tqdm(_tracepool.get_list(),ascii=True):
             agent_result = []
             for _agent in agent_list:
                 total_bitrate, total_rebuffer, total_smoothness = env.execute(
@@ -36,12 +38,7 @@ def main():
                 agent_reward.append(res)
             agent_reward = np.array(agent_reward)
             tmp_battle = rules(agent_result)
-            total_bitrate0, total_rebuffer0, _ = agent_result[0]
-            total_bitrate1, total_rebuffer1, _ = agent_result[1]
-            log_file.write(str(total_bitrate0) + ',' + str(round(total_rebuffer0)) +
-                           ',' + str(total_bitrate1) + ',' + str(round(total_rebuffer1)))
-            log_file.write('\n')
-            log_file.flush()
+            _log.write_log(agent_result)
             _tmp[np.argmax(tmp_battle)] += 1
             _tmp[-1] += 1
             for _index, _agent in enumerate(agent_list):
@@ -67,9 +64,9 @@ def main():
         print(agent_elo)
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%',
               ',', round(_tmp[1] * 100.0 / _tmp[-1], 2), '%')
-        log_file.write('\n')
+              
+        _log.write_line()
         os.system('python draw.py')
-        log_file.flush()
 
 
 if __name__ == '__main__':
