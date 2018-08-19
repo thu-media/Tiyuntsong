@@ -58,11 +58,13 @@ class DualNetwork(object):
                     tmp, FEATURE_NUM, 4, activation='relu')
                 branch3 = tflearn.conv_1d(
                     tmp, FEATURE_NUM, 5, activation='relu')
-                network = tflearn.merge([branch1, branch2, branch3], mode='concat', axis=1)
+                network = tflearn.merge(
+                    [branch1, branch2, branch3], mode='concat', axis=1)
                 network = tf.expand_dims(network, 2)
                 network = tflearn.global_avg_pool(network)
                 split_array.append(network)
-            out = tflearn.merge(split_array, 'concat')
+            out, _ = self.attention(split_array, FEATURE_NUM)
+            #out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 
@@ -131,7 +133,7 @@ class ActorNetwork(object):
             )
         ) \
             + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
-                                                       tf.log(self.out + ENTROPY_EPS)))
+                                                         tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
         self.actor_gradients = tf.gradients(self.obj, self.network_params)
@@ -173,10 +175,10 @@ class ActorNetwork(object):
             self.acts: acts,
             self.act_grad_weights: act_grad_weights,
             self.entropy: _entropy
-            #self.lr_rate: _lr
+            # self.lr_rate: _lr
         })
 
-    def apply_gradients(self, actor_gradients, lr_ratio = 1.0):
+    def apply_gradients(self, actor_gradients, lr_ratio=1.0):
         _dict = {}
         for i, d in zip(self.actor_gradients, actor_gradients):
             _dict[i] = d
@@ -295,11 +297,11 @@ class CriticNetwork(object):
             self.td_target: td_target
         })
 
-    def apply_gradients(self, critic_gradients, lr_ratio = 1.0):
+    def apply_gradients(self, critic_gradients, lr_ratio=1.0):
         _dict = {}
         for i, d in zip(self.critic_gradients, critic_gradients):
             _dict[i] = d
-        
+
         _lr = self.learning_rate * \
             (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
@@ -338,23 +340,41 @@ class GANNetwork(object):
         self.disc_loss = tflearn.mean_square(
             tf.log(self.discriminator), self.out)
 
+        self.gen_op = tf.train.AdamOptimizer(self.lr_rate).minimize(self.gen_loss)
+        self.disc_op = tf.train.AdamOptimizer(self.lr_rate).minimize(self.disc_loss)
+
     def create_generate_network(self):
-        with tf.variable_scope(self.scope + '-gan_g'):
+        #with tf.variable_scope(self.scope + '-gan-g'):
+        #    inputs = tflearn.input_data(
+        #        shape=[None, self.s_dim[0], self.s_dim[1]])
+        #dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        with tf.variable_scope(self.scope + '-gan-g'):
             inputs = tflearn.input_data(
-                shape=[None, self.s_dim[0], self.s_dim[1]])
-        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
-        with tf.variable_scope(self.scope + '-gan_g-end'):
-            out = tflearn.fully_connected(
-                dense_net_0, FEATURE_NUM, activation='sigmoid')
+                shape=[None, self.s_dim[0] * self.s_dim[1] + FEATURE_NUM // 2])
+            net = tflearn.fully_connected(inputs, FEATURE_NUM * 2, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            net = tflearn.fully_connected(inputs, FEATURE_NUM, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            out = tflearn.fully_connected(net, FEATURE_NUM // 2, activation='sigmoid')
             return inputs, out
 
     def create_discriminator_network(self):
-        with tf.variable_scope(self.scope + '-gan_d'):
+        with tf.variable_scope(self.scope + '-gan-d'):
             inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
-            net = tflearn.fully_connected(inputs, 128, activation='relu')
-            net = tflearn.fully_connected(inputs, 64, activation='relu')
-            out = tflearn.fully_connected(net, 1, activation='linear')
+            net = tflearn.fully_connected(inputs, FEATURE_NUM * 2, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            net = tflearn.fully_connected(inputs, FEATURE_NUM, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            out = tflearn.fully_connected(net, 1, activation='sigmoid')
             return inputs, out
+    
+    def get_gan(self, state_input):
+        self.sess.run(self.generate, feed_dict={
+            self.inputs_g: state_input
+        })
+    
+    def optimize(self, reward):
+        pass
 
 
 def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
