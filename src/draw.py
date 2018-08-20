@@ -33,7 +33,7 @@ def read_history(filename='elo_baseline.txt'):
     return np.array(_tmpA)
 
 
-def moving_average(data, alpha=0.9):
+def moving_average(data, alpha=0.91):
     _tmp = []
     _val = data[0]
     for p in data:
@@ -42,19 +42,22 @@ def moving_average(data, alpha=0.9):
     return np.array(_tmp)
 
 plt.switch_backend('Agg')
-plt.rcParams['axes.labelsize'] = 24
+
+plt.rcParams['axes.labelsize'] = 40
 plt.rcParams['axes.labelweight'] = 'bold'
-font = {'size': 12}
+font = {'size': 30}
 matplotlib.rc('font', **font)
 fig, ax1 = plt.subplots(figsize=(20, 12), dpi=50)
 _a, _b = read_csv()
 _tmp = read_history()
 ax1.grid(True)
-ax1.set_title('elo')
-l4 = ax1.plot(_a, color='red', lw=LW, alpha=0.2)
-l4 = ax1.plot(moving_average(_a), color='red', lw=LW, label='A')
-l4 = ax1.plot(_b, color='blue', lw=LW, alpha=0.2)
-l4 = ax1.plot(moving_average(_b), color='blue', lw=LW, label='B')
+ax1.set_title('Tiyuntsong without GAN')
+ax1.set_ylabel('elo')
+ax1.set_xlabel('step')
+l4 = ax1.plot(_a, color='darkgreen', lw=LW, alpha=0.2)
+l4 = ax1.plot(moving_average(_a), color='darkgreen', lw=LW, label='A')
+l4 = ax1.plot(_b, color='darkblue', lw=LW, alpha=0.2)
+l4 = ax1.plot(moving_average(_b), color='darkblue', lw=LW, label='B')
 _label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh']
 _color = ['darkred', 'darkblue', 'salmon', 'gray', 'pink']
 for index, p in enumerate(_tmp):
