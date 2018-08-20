@@ -326,6 +326,7 @@ class GANNetwork(object):
     #disc_loss = -tf.reduce_mean(tf.log(disc_real) + tf.log(1. - disc_fake))
     #gen_loss = -tf.reduce_mean(tf.log(disc_fake))
     def __init__(self, sess, state_dim, learning_rate, scope, dual, critic):
+        self.reuse = False
         self.sess = sess
         self.s_dim = state_dim
         self.lr_rate = learning_rate
@@ -333,7 +334,7 @@ class GANNetwork(object):
         self.dual = dual
         self.critic = critic
         self.inputs_g, self.generate = self.create_generate_network()
-        self.inputs_d, self.discriminator = self.create_discriminator_network()
+        self.inputs_d, self.discriminator = self.create_discriminator_network(self.generate)
         self.out = tf.placeholder(tf.float32, [None, 1])
 
         self.gen_loss = -tf.reduce_mean(tf.log(self.discriminator))
@@ -343,12 +344,14 @@ class GANNetwork(object):
         self.gen_op = tf.train.AdamOptimizer(self.lr_rate).minimize(self.gen_loss)
         self.disc_op = tf.train.AdamOptimizer(self.lr_rate).minimize(self.disc_loss)
 
+        self.past_gan = np.zeros((1, FEATURE_NUM))
+
     def create_generate_network(self):
         #with tf.variable_scope(self.scope + '-gan-g'):
         #    inputs = tflearn.input_data(
         #        shape=[None, self.s_dim[0], self.s_dim[1]])
         #dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
-        with tf.variable_scope(self.scope + '-gan-g'):
+        with tf.variable_scope(self.scope + '-gan-g', reuse = self.reuse):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0] * self.s_dim[1] + FEATURE_NUM // 2])
             net = tflearn.fully_connected(inputs, FEATURE_NUM * 2, activation='leakyrelu')
@@ -356,25 +359,37 @@ class GANNetwork(object):
             net = tflearn.fully_connected(inputs, FEATURE_NUM, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
             out = tflearn.fully_connected(net, FEATURE_NUM // 2, activation='sigmoid')
+            self.reuse = True
             return inputs, out
 
-    def create_discriminator_network(self):
+    def create_discriminator_network(self, generate_network):
         with tf.variable_scope(self.scope + '-gan-d'):
-            inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
-            net = tflearn.fully_connected(inputs, FEATURE_NUM * 2, activation='leakyrelu')
+            #inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
+            net = tflearn.fully_connected(generate_network, FEATURE_NUM * 2, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
             net = tflearn.fully_connected(inputs, FEATURE_NUM, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
             out = tflearn.fully_connected(net, 1, activation='sigmoid')
-            return inputs, out
+            return generate_network, out
     
     def get_gan(self, state_input):
+        self.past_gan = self.sess.run(self.generate, feed_dict={
+            self.inputs_g: state_input
+        })
+        return self.past_gan
+    
+    def optimize(self, state_input, reward):
+        self.sess.run(self.disc_op, feed_dict={
+            self.inputs_g: state_input,
+            self.out: reward
+        })
+        #trick: run twice.
         self.sess.run(self.generate, feed_dict={
             self.inputs_g: state_input
         })
-    
-    def optimize(self, reward):
-        pass
+        self.sess.run(self.generate, feed_dict={
+            self.inputs_g: state_input
+        })
 
 
 def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
