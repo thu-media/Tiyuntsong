@@ -8,10 +8,11 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 #import tflearn
 
 RAND_RANGE = 10000
+EPS = 1e-6
 
 
 class Zero(sabre.Abr):
-    S_INFO = 10
+    S_INFO = 9
     S_LEN = 10
     THROUGHPUT_NORM = 5 * 1024.0
     BITRATE_NORM = 8 * 1024.0
@@ -19,7 +20,10 @@ class Zero(sabre.Abr):
    # A_DIM = len(VIDEO_BIT_RATE)
     ACTOR_LR_RATE = 1e-4
     CRITIC_LR_RATE = 1e-3
+    GAN_LR_RATE = 1e-4
     A_DIM = 10
+    D_DIM = 5
+    D_STEP = 0.5
     GRADIENT_BATCH_SIZE = 32
 
     def __init__(self, scope):
@@ -31,17 +35,26 @@ class Zero(sabre.Abr):
         #self.last_quality = 0
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
         self.quality_len = Zero.A_DIM
+        self.delay_len = Zero.D_DIM
+        self.delay = np.zeros((self.delay_len))
+        for p in range(Zero.D_DIM):
+            self.delay[p] = Zero.D_STEP * p
+
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         # with tf.Session() as sess, open(LOG_FILE + '_agent_' + str(agent_id), 'wb') as log_file:
+        # self.gan = a3c.GANNetwork(self.sess, state_dim=[
+        #    Zero.S_INFO, Zero.S_LEN], learning_rate=Zero.GAN_LR_RATE, scope=scope)
         self.dual = a3c.DualNetwork(self.sess, scope)
         self.actor = a3c.ActorNetwork(self.sess,
                                       state_dim=[
-                                          Zero.S_INFO, Zero.S_LEN], action_dim=self.quality_len,
-                                      learning_rate=Zero.ACTOR_LR_RATE, scope=scope, dual=self.dual)
+                                          Zero.S_INFO, Zero.S_LEN], action_dim=self.quality_len * self.delay_len,
+                                      learning_rate=Zero.ACTOR_LR_RATE, scope=scope,
+                                      dual=self.dual)  # , gan=self.gan)
         self.critic = a3c.CriticNetwork(self.sess,
                                         state_dim=[Zero.S_INFO, Zero.S_LEN],
-                                        learning_rate=Zero.CRITIC_LR_RATE, scope=scope, dual=self.dual)
+                                        learning_rate=Zero.CRITIC_LR_RATE, scope=scope,
+                                        dual=self.dual)  # , gan=self.gan)
         self.sess.run(tf.global_variables_initializer())
         self.history = []
         self.quality_history = []
@@ -70,7 +83,7 @@ class Zero(sabre.Abr):
         self.replay_buffer = []
 
     def learn(self, ratio=1.0):
-        print(len(self.replay_buffer))
+        #print(len(self.replay_buffer))
         actor_gradient_batch, critic_gradient_batch = [], []
 
         for (s_batch, a_batch, r_batch) in self.replay_buffer:
@@ -80,10 +93,11 @@ class Zero(sabre.Abr):
                                       r_batch=np.vstack(r_batch),
                                       actor=self.actor, critic=self.critic,
                                       lr_ratio=ratio)
+            #self.gan.optimize(s_batch, r_batch)
 
             actor_gradient_batch.append(actor_gradient)
             critic_gradient_batch.append(critic_gradient)
-        #print('start learn')
+            
         for i in range(len(actor_gradient_batch)):
             self.actor.apply_gradients(actor_gradient_batch[i], lr_ratio=ratio)
             self.critic.apply_gradients(
@@ -91,10 +105,8 @@ class Zero(sabre.Abr):
 
         self.actor_gradient_batch = []
         self.critic_gradient_batch = []
-        #self.replay_buffer = []
 
     def pull(self):
-        # print(self.replay_buffer)
         _ret_buffer = []
         for (s_batch, a_batch, r_batch) in self.replay_buffer:
             if r_batch[-1] > 0:
@@ -102,13 +114,11 @@ class Zero(sabre.Abr):
         return _ret_buffer
 
     def push(self, reward):
-        # print(len(reward))
         s_batch, a_batch, r_batch = [], [], []
-        print(len(reward), len(self.history))
         _index = 0
         for (state, action) in self.history:
             s_batch.append(state)
-            action_vec = np.zeros(Zero.A_DIM)
+            action_vec = np.zeros(Zero.A_DIM * Zero.D_DIM)
             action_vec[action] = 1
             a_batch.append(action_vec)
             r_batch.append(reward[_index])
@@ -120,6 +130,9 @@ class Zero(sabre.Abr):
         self.quality_history = []
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
 
+    def _get_quality_delay(self, action):
+        return action // Zero.A_DIM, action % Zero.A_DIM
+
     def get_quality_delay(self, segment_index):
         #print(self.buffer_size, sabre.manifest.segment_time, sabre.get_buffer_level(),sabre.manifest.segments[segment_index])
         # print(sabre.log_history[-1],sabre.throughput)
@@ -128,25 +141,29 @@ class Zero(sabre.Abr):
                 (sabre.played_bitrate, sabre.rebuffer_time, sabre.total_bitrate_change))
         if segment_index < 0:
             return
-        #manifest_len = len(sabre.manifest.segments)
+        manifest_len = len(sabre.manifest.segments) * sabre.manifest.segment_time
         time, throughput, latency, quality, _ = sabre.log_history[-1]
         state = self.state
         state = np.roll(state, -1, axis=1)
         state[0, -1] = throughput / Zero.THROUGHPUT_NORM
-        state[1, -1] = time / Zero.TIME_NORM
-        state[2, -1] = latency / Zero.TIME_NORM
-        state[3, -1] = quality / self.quality_len
-        state[4, -1] = sabre.played_bitrate / \
-            (segment_index * np.max(sabre.manifest.bitrates))
-        state[5, -1] = sabre.rebuffer_time / sabre.total_play_time
-        state[6, -1] = sabre.total_bitrate_change / sabre.played_bitrate
+        state[1, -1] = time / manifest_len
+        state[2, -1] = sabre.total_play_time / manifest_len
+        state[3, -1] = latency / Zero.TIME_NORM
+        state[4, -1] = quality / self.quality_len
+        #state[5, -1] = sabre.played_bitrate / \
+        #    (segment_index * np.max(sabre.manifest.bitrates))
+        #state[6, -1] = sabre.rebuffer_time / (sabre.total_play_time + EPS)
+        #state[7, -1] = sabre.total_bitrate_change / \
+        #    (sabre.played_bitrate + EPS)
         #state[6, -1] = (manifest_len - segment_index) / manifest_len
         #state[7, -1] = sabre.get_buffer_level() / 25.0
-        state[7, 0:Zero.A_DIM] = np.array(sabre.manifest.bitrates /
+        state[5, 0:Zero.A_DIM] = np.array(sabre.manifest.bitrates /
                                           np.max(sabre.manifest.bitrates))
+        state[6, 0:Zero.A_DIM] = np.array(
+            sabre.manifest.segments[segment_index]) / 1024.0 / 1024.0 / 2.0
         _fft = np.fft.fft(state[0])
-        state[8] = _fft.real
-        state[9] = _fft.imag
+        state[7] = _fft.real
+        state[8] = _fft.imag
 
         self.state = state
         action_prob = self.actor.predict(
@@ -154,8 +171,10 @@ class Zero(sabre.Abr):
         # print(action_prob[0])
         #quality = np.argmax(action_prob[0])
         action_cumsum = np.cumsum(action_prob[0])
-        quality = (action_cumsum > np.random.randint(
+        action = (action_cumsum > np.random.randint(
             1, RAND_RANGE) / float(RAND_RANGE)).argmax()
-        delay = 0
-        self.history.append((self.state, quality))
-        return (quality, delay)
+
+        quality, delay = self._get_quality_delay(action)
+        _delay = delay * Zero.D_STEP
+        self.history.append((self.state, action))
+        return (quality, _delay)

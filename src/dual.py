@@ -58,13 +58,11 @@ class DualNetwork(object):
                     tmp, FEATURE_NUM, 4, activation='relu')
                 branch3 = tflearn.conv_1d(
                     tmp, FEATURE_NUM, 5, activation='relu')
-                network = tflearn.merge(
-                    [branch1, branch2, branch3], mode='concat', axis=1)
+                network = tflearn.merge([branch1, branch2, branch3], mode='concat', axis=1)
                 network = tf.expand_dims(network, 2)
                 network = tflearn.global_avg_pool(network)
                 split_array.append(network)
-            out, _ = self.attention(split_array, FEATURE_NUM)
-            #out = tflearn.merge(split_array, 'concat')
+            out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 
@@ -112,7 +110,6 @@ class ActorNetwork(object):
         # This gradient will be provided by the critic network
         self.act_grad_weights = tf.placeholder(tf.float32, [None, 1])
         self.lr_rate = tf.placeholder(tf.float32)
-        self.entropy = tf.placeholder(tf.float32)
 
         self.loss = tflearn.objectives.softmax_categorical_crossentropy(
             self.out, self.y_)
@@ -133,7 +130,7 @@ class ActorNetwork(object):
             )
         ) \
             + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
-                                                         tf.log(self.out + ENTROPY_EPS)))
+                                                       tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
         self.actor_gradients = tf.gradients(self.obj, self.network_params)
@@ -168,17 +165,17 @@ class ActorNetwork(object):
         })
 
     def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0):
-        _entropy = self.basic_entropy * \
-            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        #_entropy = self.basic_entropy * \
+        #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.acts: acts,
-            self.act_grad_weights: act_grad_weights,
-            self.entropy: _entropy
-            # self.lr_rate: _lr
+            self.act_grad_weights: act_grad_weights
+            #self.entropy: _entropy
+            #self.lr_rate: _lr
         })
 
-    def apply_gradients(self, actor_gradients, lr_ratio=1.0):
+    def apply_gradients(self, actor_gradients, lr_ratio = 1.0):
         _dict = {}
         for i, d in zip(self.actor_gradients, actor_gradients):
             _dict[i] = d
@@ -297,11 +294,11 @@ class CriticNetwork(object):
             self.td_target: td_target
         })
 
-    def apply_gradients(self, critic_gradients, lr_ratio=1.0):
+    def apply_gradients(self, critic_gradients, lr_ratio = 1.0):
         _dict = {}
         for i, d in zip(self.critic_gradients, critic_gradients):
             _dict[i] = d
-
+        
         _lr = self.learning_rate * \
             (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
@@ -314,83 +311,6 @@ class CriticNetwork(object):
         self.sess.run(self.set_network_params_op, feed_dict={
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
-
-    # def teach(self, state, action):
-    #     return self.sess.run(self.teach, feed_dict={
-    #         self.inputs: state, self.y_: action
-    #     })
-
-
-class GANNetwork(object):
-    # https://arxiv.org/pdf/1406.2661.pdf
-    #disc_loss = -tf.reduce_mean(tf.log(disc_real) + tf.log(1. - disc_fake))
-    #gen_loss = -tf.reduce_mean(tf.log(disc_fake))
-    def __init__(self, sess, state_dim, learning_rate, scope, dual, critic):
-        self.reuse = False
-        self.sess = sess
-        self.s_dim = state_dim
-        self.lr_rate = learning_rate
-        self.scope = scope
-        self.dual = dual
-        self.critic = critic
-        self.inputs_g, self.generate = self.create_generate_network()
-        self.inputs_d, self.discriminator = self.create_discriminator_network(self.generate)
-        self.out = tf.placeholder(tf.float32, [None, 1])
-
-        self.gen_loss = -tf.reduce_mean(tf.log(self.discriminator))
-        self.disc_loss = tflearn.mean_square(
-            tf.log(self.discriminator), self.out)
-
-        self.gen_op = tf.train.AdamOptimizer(self.lr_rate).minimize(self.gen_loss)
-        self.disc_op = tf.train.AdamOptimizer(self.lr_rate).minimize(self.disc_loss)
-
-        self.past_gan = np.zeros((1, FEATURE_NUM))
-
-    def create_generate_network(self):
-        #with tf.variable_scope(self.scope + '-gan-g'):
-        #    inputs = tflearn.input_data(
-        #        shape=[None, self.s_dim[0], self.s_dim[1]])
-        #dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
-        with tf.variable_scope(self.scope + '-gan-g', reuse = self.reuse):
-            inputs = tflearn.input_data(
-                shape=[None, self.s_dim[0] * self.s_dim[1] + FEATURE_NUM // 2])
-            net = tflearn.fully_connected(inputs, FEATURE_NUM * 2, activation='leakyrelu')
-            net = tflearn.batch_normalization(net)
-            net = tflearn.fully_connected(inputs, FEATURE_NUM, activation='leakyrelu')
-            net = tflearn.batch_normalization(net)
-            out = tflearn.fully_connected(net, FEATURE_NUM // 2, activation='sigmoid')
-            self.reuse = True
-            return inputs, out
-
-    def create_discriminator_network(self, generate_network):
-        with tf.variable_scope(self.scope + '-gan-d'):
-            #inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
-            net = tflearn.fully_connected(generate_network, FEATURE_NUM * 2, activation='leakyrelu')
-            net = tflearn.batch_normalization(net)
-            net = tflearn.fully_connected(inputs, FEATURE_NUM, activation='leakyrelu')
-            net = tflearn.batch_normalization(net)
-            out = tflearn.fully_connected(net, 1, activation='sigmoid')
-            return generate_network, out
-    
-    def get_gan(self, state_input):
-        self.past_gan = self.sess.run(self.generate, feed_dict={
-            self.inputs_g: state_input
-        })
-        return self.past_gan
-    
-    def optimize(self, state_input, reward):
-        self.sess.run(self.disc_op, feed_dict={
-            self.inputs_g: state_input,
-            self.out: reward
-        })
-        #trick: run twice.
-        self.sess.run(self.generate, feed_dict={
-            self.inputs_g: state_input
-        })
-        self.sess.run(self.generate, feed_dict={
-            self.inputs_g: state_input
-        })
-
 
 def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
     """

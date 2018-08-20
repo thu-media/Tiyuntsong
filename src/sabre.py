@@ -1462,7 +1462,7 @@ def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_00
     next_segment = 1
     abandoned_to_quality = None
     while next_segment < len(manifest.segments):
-
+        
         full_delay = get_buffer_level() + manifest.segment_time - buffer_size
         if full_delay > 0:
             deplete_buffer(full_delay)
@@ -1486,13 +1486,14 @@ def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_00
             check_abandon = abr.check_abandon
         if args.no_abandon:
             check_abandon = None
-
-        size = manifest.segments[current_segment][quality]
+        
 
         if delay > 0:
             deplete_buffer(delay)
             network.delay(delay)
-
+        #if quality >= len(manifest.segments[current_segment]
+        
+        size = manifest.segments[current_segment][quality]
         download_metric = network.download(size, current_segment, quality,
                                            get_buffer_level(), check_abandon)
 
@@ -1541,6 +1542,7 @@ def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_00
             throughput_history.push(download_time, t, l)
 
     playout_buffer()
+    abr.get_quality_delay(-1)
     return played_bitrate, rebuffer_time, total_bitrate_change
 
 def execute_model(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_0002.json', argv=None):
@@ -1790,7 +1792,6 @@ def execute_model(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_
             throughput_history.push(download_time, t, l)
 
     playout_buffer()
-    abr.get_quality_delay(-1)
     return played_bitrate, rebuffer_time, total_bitrate_change
 
 if __name__ == '__main__':
