@@ -4,7 +4,7 @@ import tflearn
 
 
 GAMMA = 0.99
-ENTROPY_WEIGHT = 0.1
+ENTROPY_WEIGHT = 1.0
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
@@ -110,6 +110,7 @@ class ActorNetwork(object):
         # This gradient will be provided by the critic network
         self.act_grad_weights = tf.placeholder(tf.float32, [None, 1])
         self.lr_rate = tf.placeholder(tf.float32)
+        self.entropy = tf.placeholder(tf.float32)
 
         self.loss = tflearn.objectives.softmax_categorical_crossentropy(
             self.out, self.y_)
@@ -129,7 +130,7 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
+            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
                                                        tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
@@ -165,13 +166,13 @@ class ActorNetwork(object):
         })
 
     def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0):
-        #_entropy = self.basic_entropy * \
-        #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        _entropy = self.basic_entropy * \
+            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.acts: acts,
-            self.act_grad_weights: act_grad_weights
-            #self.entropy: _entropy
+            self.act_grad_weights: act_grad_weights,
+            self.entropy: _entropy
             #self.lr_rate: _lr
         })
 
@@ -311,6 +312,50 @@ class CriticNetwork(object):
         self.sess.run(self.set_network_params_op, feed_dict={
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
+
+    # def teach(self, state, action):
+    #     return self.sess.run(self.teach, feed_dict={
+    #         self.inputs: state, self.y_: action
+    #     })
+
+
+class GANNetwork(object):
+    # https://arxiv.org/pdf/1406.2661.pdf
+    #disc_loss = -tf.reduce_mean(tf.log(disc_real) + tf.log(1. - disc_fake))
+    #gen_loss = -tf.reduce_mean(tf.log(disc_fake))
+    def __init__(self, sess, state_dim, learning_rate, scope, dual, critic):
+        self.sess = sess
+        self.s_dim = state_dim
+        self.lr_rate = learning_rate
+        self.scope = scope
+        self.dual = dual
+        self.critic = critic
+        self.inputs_g, self.generate = self.create_generate_network()
+        self.inputs_d, self.discriminator = self.create_discriminator_network()
+        self.out = tf.placeholder(tf.float32, [None, 1])
+
+        self.gen_loss = -tf.reduce_mean(tf.log(self.discriminator))
+        self.disc_loss = tflearn.mean_square(
+            tf.log(self.discriminator), self.out)
+
+    def create_generate_network(self):
+        with tf.variable_scope(self.scope + '-gan_g'):
+            inputs = tflearn.input_data(
+                shape=[None, self.s_dim[0], self.s_dim[1]])
+        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        with tf.variable_scope(self.scope + '-gan_g-end'):
+            out = tflearn.fully_connected(
+                dense_net_0, FEATURE_NUM, activation='sigmoid')
+            return inputs, out
+
+    def create_discriminator_network(self):
+        with tf.variable_scope(self.scope + '-gan_d'):
+            inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
+            net = tflearn.fully_connected(inputs, 128, activation='relu')
+            net = tflearn.fully_connected(inputs, 64, activation='relu')
+            out = tflearn.fully_connected(net, 1, activation='linear')
+            return inputs, out
+
 
 def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
     """

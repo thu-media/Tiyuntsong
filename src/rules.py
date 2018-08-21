@@ -1,6 +1,6 @@
 import numpy as np
 import elo
-EPS = 1.0
+EPS = 100.0
 def rules(agent_result):
     return threshold_rules(agent_result)
 

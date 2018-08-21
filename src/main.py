@@ -61,6 +61,7 @@ def main():
             elo_file.write(str(p) + ' ')
         elo_file.write('\n')
         elo_file.flush()
+        print(_rate)
         print(agent_elo)
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%',
               ',', round(_tmp[1] * 100.0 / _tmp[-1], 2), '%')
