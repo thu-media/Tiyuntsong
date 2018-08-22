@@ -4,7 +4,7 @@ import tflearn
 
 
 GAMMA = 0.99
-ENTROPY_WEIGHT = 1.0
+ENTROPY_WEIGHT = 0.3
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 KERNEL = 3
@@ -62,7 +62,8 @@ class DualNetwork(object):
                 network = tf.expand_dims(network, 2)
                 network = tflearn.global_avg_pool(network)
                 split_array.append(network)
-            out = tflearn.merge(split_array, 'concat')
+            out, _ = self.attention(split_array, FEATURE_NUM)
+           # out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 
@@ -130,7 +131,7 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
+            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
                                                        tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
@@ -166,13 +167,13 @@ class ActorNetwork(object):
         })
 
     def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0):
-        _entropy = self.basic_entropy * \
-            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        #_entropy = self.basic_entropy * \
+        #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.acts: acts,
-            self.act_grad_weights: act_grad_weights,
-            self.entropy: _entropy
+            self.act_grad_weights: act_grad_weights
+            #self.entropy: _entropy
             #self.lr_rate: _lr
         })
 
