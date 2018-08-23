@@ -58,12 +58,13 @@ class DualNetwork(object):
                     tmp, FEATURE_NUM, 4, activation='relu')
                 branch3 = tflearn.conv_1d(
                     tmp, FEATURE_NUM, 5, activation='relu')
-                network = tflearn.merge([branch1, branch2, branch3], mode='concat', axis=1)
+                network = tflearn.merge(
+                    [branch1, branch2, branch3], mode='concat', axis=1)
                 network = tf.expand_dims(network, 2)
                 network = tflearn.global_avg_pool(network)
                 split_array.append(network)
-            #out, _ = self.attention(split_array, FEATURE_NUM)
-            out = tflearn.merge(split_array, 'concat')
+            out, _ = self.attention(split_array, FEATURE_NUM)
+            #out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 
@@ -74,7 +75,7 @@ class ActorNetwork(object):
     of all actions.
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual):
+    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual, gan):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
@@ -86,6 +87,10 @@ class ActorNetwork(object):
         self.scope = scope
         self.dual = dual
 
+        self.gan = gan
+        self.past_gan = np.zeros((1, FEATURE_NUM))
+        self.gan_inputs = tf.placeholder(tf.float32, [None, FEATURE_NUM])
+
         # Create the actor network
         self.inputs, self.out = self.create_actor_network()
 
@@ -93,16 +98,6 @@ class ActorNetwork(object):
         self.network_params = \
             tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                               scope=self.scope + '-actor')
-
-        # Set all network parameters
-        self.input_network_params = []
-        for param in self.network_params:
-            self.input_network_params.append(
-                tf.placeholder(tf.float32, shape=param.get_shape()))
-        self.set_network_params_op = []
-        for idx, param in enumerate(self.input_network_params):
-            self.set_network_params_op.append(
-                self.network_params[idx].assign(param))
 
         # Selected action, 0-1 vector
         self.acts = tf.placeholder(tf.float32, [None, self.a_dim])
@@ -132,7 +127,7 @@ class ActorNetwork(object):
             )
         ) \
             + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
-                                                       tf.log(self.out + ENTROPY_EPS)))
+                                                         tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
         self.actor_gradients = tf.gradients(self.obj, self.network_params)
@@ -146,6 +141,8 @@ class ActorNetwork(object):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
         dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        dense_net_0 = tflearn.merge([dense_net_0, self.gan_inputs], 'concat')
+        dense_net_0 = tflearn.flatten(dense_net_0)
         with tf.variable_scope(self.scope + '-actor'):
             dense_net_0 = tflearn.fully_connected(
                 dense_net_0, FEATURE_NUM, activation='relu')
@@ -154,30 +151,27 @@ class ActorNetwork(object):
 
             return inputs, out
 
-    def train(self, inputs, acts, act_grad_weights):
-        self.sess.run(self.optimize, feed_dict={
-            self.inputs: inputs,
-            self.acts: acts,
-            self.act_grad_weights: act_grad_weights
-        })
-
     def predict(self, inputs):
-        return self.sess.run(self.out, feed_dict={
-            self.inputs: inputs
+        self.past_gan = self.gan.get_gan(inputs, self.past_gan)
+        _pred = self.sess.run(self.out, feed_dict={
+            self.inputs: inputs,
+            self.gan_inputs: self.past_gan
         })
+        return self.past_gan, _pred
 
-    def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0):
-        #_entropy = self.basic_entropy * \
-        #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+    def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0, g_inputs=None):
+        _entropy = self.basic_entropy * \
+            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
+            self.gan_inputs: g_inputs,
             self.acts: acts,
-            self.act_grad_weights: act_grad_weights
-            #self.entropy: _entropy
-            #self.lr_rate: _lr
+            self.act_grad_weights: act_grad_weights,
+            self.entropy: _entropy
+            # self.lr_rate: _lr
         })
 
-    def apply_gradients(self, actor_gradients, lr_ratio = 1.0):
+    def apply_gradients(self, actor_gradients, lr_ratio=1.0):
         _dict = {}
         for i, d in zip(self.actor_gradients, actor_gradients):
             _dict[i] = d
@@ -185,14 +179,6 @@ class ActorNetwork(object):
             (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
         return self.sess.run(self.optimize, feed_dict=_dict)
-
-    def get_network_params(self):
-        return self.sess.run(self.network_params)
-
-    def set_network_params(self, input_network_params):
-        self.sess.run(self.set_network_params_op, feed_dict={
-            i: d for i, d in zip(self.input_network_params, input_network_params)
-        })
 
     def teach(self, state, action):
         return self.sess.run(self.teach_op, feed_dict={
@@ -219,13 +205,17 @@ class CriticNetwork(object):
     On policy: the action must be obtained from the output of the Actor network.
     """
 
-    def __init__(self, sess, state_dim, learning_rate, scope, dual):
+    def __init__(self, sess, state_dim, learning_rate, scope, dual, gan):
         self.sess = sess
         self.s_dim = state_dim
         #self.lr_rate = learning_rate
         self.learning_rate = learning_rate
         self.scope = scope
         self.dual = dual
+
+        self.gan = gan
+        self.past_gan = np.zeros((1, FEATURE_NUM))
+        self.gan_inputs = tf.placeholder(tf.float32, [None, FEATURE_NUM])
 
         # Create the critic network
         self.inputs, self.out = self.create_critic_network()
@@ -267,6 +257,8 @@ class CriticNetwork(object):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
         dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        dense_net_0 = tflearn.merge([dense_net_0, self.gan_inputs], 'concat')
+        dense_net_0 = tflearn.flatten(dense_net_0)
         with tf.variable_scope(self.scope + '-critic'):
             dense_net_0 = tflearn.fully_connected(
                 dense_net_0, FEATURE_NUM, activation='relu')
@@ -279,10 +271,15 @@ class CriticNetwork(object):
             self.td_target: td_target
         })
 
-    def predict(self, inputs):
-        return self.sess.run(self.out, feed_dict={
-            self.inputs: inputs
+    def predict(self, inputs, gan=None):
+        if gan is None:
+            gan = self.past_gan
+        self.past_gan = self.gan.get_gan(inputs, gan)
+        _pred = self.sess.run(self.out, feed_dict={
+            self.inputs: inputs,
+            self.gan_inputs: self.past_gan
         })
+        return self.past_gan, _pred
 
     def get_td(self, inputs, td_target):
         return self.sess.run(self.td, feed_dict={
@@ -290,17 +287,18 @@ class CriticNetwork(object):
             self.td_target: td_target
         })
 
-    def get_gradients(self, inputs, td_target):
+    def get_gradients(self, inputs, td_target, g_inputs):
         return self.sess.run(self.critic_gradients, feed_dict={
             self.inputs: inputs,
+            self.gan_inputs: g_inputs,
             self.td_target: td_target
         })
 
-    def apply_gradients(self, critic_gradients, lr_ratio = 1.0):
+    def apply_gradients(self, critic_gradients, lr_ratio=1.0):
         _dict = {}
         for i, d in zip(self.critic_gradients, critic_gradients):
             _dict[i] = d
-        
+
         _lr = self.learning_rate * \
             (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
@@ -324,41 +322,107 @@ class GANNetwork(object):
     # https://arxiv.org/pdf/1406.2661.pdf
     #disc_loss = -tf.reduce_mean(tf.log(disc_real) + tf.log(1. - disc_fake))
     #gen_loss = -tf.reduce_mean(tf.log(disc_fake))
-    def __init__(self, sess, state_dim, learning_rate, scope, dual, critic):
+    def __init__(self, sess, state_dim, learning_rate, scope):
+        self.reuse_gan = False
+        self.reuse_disc = False
         self.sess = sess
         self.s_dim = state_dim
         self.lr_rate = learning_rate
         self.scope = scope
-        self.dual = dual
-        self.critic = critic
-        self.inputs_g, self.generate = self.create_generate_network()
-        self.inputs_d, self.discriminator = self.create_discriminator_network()
+        #self.dual = dual
+        #self.critic = critic
+        self.inputs_g, self.gan_inputs, self.generate = self.create_generate_network()
+        self.inputs_d, self.discriminator = self.create_discriminator_network(
+            self.generate)
         self.out = tf.placeholder(tf.float32, [None, 1])
 
         self.gen_loss = -tf.reduce_mean(tf.log(self.discriminator))
         self.disc_loss = tflearn.mean_square(
             tf.log(self.discriminator), self.out)
 
+        self.gen_vars = tflearn.get_layer_variables_by_scope(
+            self.scope + '-gan-g')
+        self.disc_vars = tflearn.get_layer_variables_by_scope(
+            self.scope + '-gan-d')
+        self.gen_op = tf.train.AdamOptimizer(
+            self.lr_rate).minimize(self.gen_loss, var_list=self.gen_vars)
+        self.disc_op = tf.train.AdamOptimizer(
+            self.lr_rate).minimize(self.disc_loss, var_list=self.disc_vars)
+
+        self.past_gan = np.zeros((1, FEATURE_NUM))
+
     def create_generate_network(self):
-        with tf.variable_scope(self.scope + '-gan_g'):
+        # with tf.variable_scope(self.scope + '-gan-g'):
+        #    inputs = tflearn.input_data(
+        #        shape=[None, self.s_dim[0], self.s_dim[1]])
+        #dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        with tf.variable_scope(self.scope + '-gan-g', reuse=self.reuse_gan):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
-        with tf.variable_scope(self.scope + '-gan_g-end'):
+            gan_inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
+            _input = tflearn.flatten(inputs)
+            #_gan_input = tflearn.flatten(gan_inputs)
+            #print(gan_inputs.get_shape().as_list(), _gan_input.get_shape().as_list())
+            _com = tflearn.merge([_input, gan_inputs], 'concat')
+            _com = tflearn.flatten(_com)
+            net = tflearn.fully_connected(
+                _com, FEATURE_NUM * 2, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            net = tflearn.fully_connected(
+                net, FEATURE_NUM, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
             out = tflearn.fully_connected(
-                dense_net_0, FEATURE_NUM, activation='sigmoid')
-            return inputs, out
+                net, FEATURE_NUM, activation='sigmoid')
+            self.reuse_gan = True
+            return inputs, gan_inputs, out
 
-    def create_discriminator_network(self):
-        with tf.variable_scope(self.scope + '-gan_d'):
-            inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
-            net = tflearn.fully_connected(inputs, 128, activation='relu')
-            net = tflearn.fully_connected(inputs, 64, activation='relu')
-            out = tflearn.fully_connected(net, 1, activation='linear')
-            return inputs, out
+    def create_discriminator_network(self, generate_network):
+        with tf.variable_scope(self.scope + '-gan-d', reuse=self.reuse_disc):
+            #inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
+            net = tflearn.fully_connected(
+                generate_network, FEATURE_NUM * 2, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            net = tflearn.fully_connected(
+                net, FEATURE_NUM, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            out = tflearn.fully_connected(net, 1, activation='sigmoid')
+            self.reuse_disc = True
+            return generate_network, out
+
+    def get_gan(self, state_input, past_gan):
+        state_input = np.array(state_input)
+        past_gan = np.array(past_gan)
+        #print(state_input.shape, past_gan.shape)
+        self.past_gan = self.sess.run(self.generate, feed_dict={
+            self.inputs_g: state_input,
+            self.gan_inputs: past_gan
+        })
+        return self.past_gan
+
+    def optimize(self, state_input, past_gan, reward):
+        state_input = np.array(state_input)
+        past_gan = np.array(past_gan)
+        reward = np.array(reward)
+        #print(state_input.shape, past_gan.shape)
+        self.sess.run(self.disc_op, feed_dict={
+            self.inputs_g: state_input,
+            self.gan_inputs: past_gan,
+            self.out: reward
+        })
+        # trick: run twice.
+        self.sess.run(self.generate, feed_dict={
+            self.inputs_g: state_input,
+            self.gan_inputs: past_gan,
+            self.out: reward
+        })
+        self.sess.run(self.generate, feed_dict={
+            self.inputs_g: state_input,
+            self.gan_inputs: past_gan,
+            self.out: reward
+        })
 
 
-def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
+def compute_gradients(s_batch, a_batch, r_batch, g_batch, actor, critic, lr_ratio=1.0):
     """
     batch of s, a, r is from samples in a sequence
     the format is in np.array([batch_size, s/a/r_dim])
@@ -368,7 +432,7 @@ def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
     assert s_batch.shape[0] == r_batch.shape[0]
     ba_size = s_batch.shape[0]
 
-    v_batch = critic.predict(s_batch)
+    _, v_batch = critic.predict(s_batch, g_batch)
     R_batch = np.zeros(r_batch.shape)
 
     # if terminal:
@@ -381,8 +445,8 @@ def compute_gradients(s_batch, a_batch, r_batch, actor, critic, lr_ratio=1.0):
 
     td_batch = R_batch - v_batch
 
-    actor_gradients = actor.get_gradients(s_batch, a_batch, td_batch, lr_ratio)
-    critic_gradients = critic.get_gradients(s_batch, R_batch)
+    actor_gradients = actor.get_gradients(s_batch, a_batch, td_batch, lr_ratio, g_batch)
+    critic_gradients = critic.get_gradients(s_batch, R_batch, g_batch)
 
     return actor_gradients, critic_gradients, td_batch
 
