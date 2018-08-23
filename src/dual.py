@@ -62,8 +62,8 @@ class DualNetwork(object):
                 network = tf.expand_dims(network, 2)
                 network = tflearn.global_avg_pool(network)
                 split_array.append(network)
-            #out, _ = self.attention(split_array, FEATURE_NUM)
-            out = tflearn.merge(split_array, 'concat')
+            out, _ = self.attention(split_array, FEATURE_NUM)
+            #out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 

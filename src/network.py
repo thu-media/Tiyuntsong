@@ -1,7 +1,7 @@
 import sabre
 import math
 import numpy as np
-import dualgan as a3c
+import dual as a3c
 import tensorflow as tf
 import os
 import time
@@ -44,18 +44,18 @@ class Zero(sabre.Abr):
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         # with tf.Session() as sess, open(LOG_FILE + '_agent_' + str(agent_id), 'wb') as log_file:
-        self.gan = a3c.GANNetwork(self.sess, state_dim=[
-            Zero.S_INFO, Zero.S_LEN], learning_rate=Zero.GAN_LR_RATE, scope=scope)
+        #self.gan = a3c.GANNetwork(self.sess, state_dim=[
+        #    Zero.S_INFO, Zero.S_LEN], learning_rate=Zero.GAN_LR_RATE, scope=scope)
         self.dual = a3c.DualNetwork(self.sess, scope)
         self.actor = a3c.ActorNetwork(self.sess,
                                       state_dim=[
                                           Zero.S_INFO, Zero.S_LEN], action_dim=self.quality_len,
                                       learning_rate=Zero.ACTOR_LR_RATE, scope=scope,
-                                      dual=self.dual, gan = self.gan)
+                                      dual=self.dual)#, gan = self.gan)
         self.critic=a3c.CriticNetwork(self.sess,
                                         state_dim = [Zero.S_INFO, Zero.S_LEN],
                                         learning_rate = Zero.CRITIC_LR_RATE, scope = scope,
-                                        dual = self.dual, gan=self.gan)
+                                        dual = self.dual)#, gan=self.gan)
         self.sess.run(tf.global_variables_initializer())
         self.history=[]
         self.quality_history=[]
@@ -86,18 +86,17 @@ class Zero(sabre.Abr):
         self.replay_buffer=[]
 
     def learn(self, ratio=1.0):
-        # print(len(self.replay_buffer))
         actor_gradient_batch, critic_gradient_batch=[], []
 
-        for (s_batch, a_batch, r_batch, g_batch) in self.replay_buffer:
+        for (s_batch, a_batch, r_batch) in self.replay_buffer:
+        #for (s_batch, a_batch, r_batch, g_batch) in self.replay_buffer:
             actor_gradient, critic_gradient, td_batch=a3c.compute_gradients(s_batch=np.stack(s_batch, axis = 0),
                                       a_batch=np.vstack(a_batch),
                                       r_batch=np.vstack(r_batch),
-                                      g_batch=np.vstack(g_batch),
+                                      #g_batch=np.vstack(g_batch),
                                       actor=self.actor, critic=self.critic,
                                       lr_ratio=ratio)
-            print(np.vstack(g_batch).shape)
-            self.gan.optimize(np.stack(s_batch, axis = 0), np.vstack(g_batch), np.vstack(r_batch))
+            #self.gan.optimize(np.stack(s_batch, axis = 0), np.vstack(g_batch), np.vstack(r_batch))
 
             actor_gradient_batch.append(actor_gradient)
             critic_gradient_batch.append(critic_gradient)
@@ -118,18 +117,19 @@ class Zero(sabre.Abr):
         return _ret_buffer
 
     def push(self, reward):
-        s_batch, a_batch, r_batch, g_batch=[], [], [], []
+        s_batch, a_batch, r_batch=[], [], []
         _index=0
-        for (state, action, gan) in self.history:
+        for (state, action) in self.history:
+        #for (state, action, gan) in self.history:
             s_batch.append(state)
             action_vec=np.zeros(Zero.A_DIM)
             action_vec[action]=1
             a_batch.append(action_vec)
             r_batch.append(reward[_index])
-            g_batch.append(gan)
+            #g_batch.append(gan)
             _index += 1
 
-        self.replay_buffer.append((s_batch, a_batch, r_batch, g_batch))
+        self.replay_buffer.append((s_batch, a_batch, r_batch))
 
         self.history=[]
         self.quality_history=[]
@@ -188,7 +188,8 @@ class Zero(sabre.Abr):
         # state[15] = _fft.imag
         # print(sabre.throughput)
         self.state=state
-        past_gan, action_prob=self.actor.predict(
+        #past_gan, action_prob=self.actor.predict(
+        action_prob=self.actor.predict(
             np.reshape(state, (1, Zero.S_INFO, Zero.S_LEN)))
         # print(action_prob[0])
         # quality = np.argmax(action_prob[0])
@@ -198,5 +199,5 @@ class Zero(sabre.Abr):
         #past_gan = np.reshape(past_gan,(past_gan.shape[-1]))
         # quality, delay = self._get_quality_delay(action)
         _delay = 0.0
-        self.history.append((self.state, quality, past_gan))
+        self.history.append((self.state, quality))#, past_gan))
         return (quality, _delay)
