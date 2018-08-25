@@ -53,19 +53,12 @@ class DualNetwork(object):
             split_array = []
             for i in range(s_dim[0]):
                 tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
-                branch1 = tflearn.conv_1d(
+                tmp = tflearn.conv_1d(
                     tmp, FEATURE_NUM, 3, activation='relu')
-                branch2 = tflearn.conv_1d(
-                    tmp, FEATURE_NUM, 4, activation='relu')
-                branch3 = tflearn.conv_1d(
-                    tmp, FEATURE_NUM, 5, activation='relu')
-                network = tflearn.merge(
-                    [branch1, branch2, branch3], mode='concat', axis=1)
-                network = tf.expand_dims(network, 2)
-                network = tflearn.global_avg_pool(network)
-                split_array.append(network)
-            out, _ = self.attention(split_array, FEATURE_NUM)
-            #out = tflearn.merge(split_array, 'concat')
+                tmp = tflearn.flatten(tmp)
+                split_array.append(tmp)
+            #out, _ = self.attention(split_array, FEATURE_NUM)
+            out = tflearn.merge(split_array, 'concat')
             self.reuse = True
             return out
 
@@ -368,10 +361,10 @@ class GANNetwork(object):
             _com = tflearn.merge([_input, gan_inputs], 'concat')
             _com = tflearn.flatten(_com)
             net = tflearn.fully_connected(
-                _com, FEATURE_NUM * 2, activation='leakyrelu')
+                _com, FEATURE_NUM, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
             net = tflearn.fully_connected(
-                net, FEATURE_NUM, activation='leakyrelu')
+                net, FEATURE_NUM // 2, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
             out = tflearn.fully_connected(
                 net, GAN_CORE, activation='sigmoid')
@@ -382,10 +375,10 @@ class GANNetwork(object):
         with tf.variable_scope(self.scope + '-gan-d', reuse=self.reuse_disc):
             #inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
             net = tflearn.fully_connected(
-                generate_network, FEATURE_NUM * 2, activation='leakyrelu')
+                generate_network, FEATURE_NUM, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
             net = tflearn.fully_connected(
-                net, FEATURE_NUM, activation='leakyrelu')
+                net, FEATURE_NUM // 2, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
             out = tflearn.fully_connected(net, 1, activation='sigmoid')
             self.reuse_disc = True

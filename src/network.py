@@ -169,6 +169,6 @@ class Zero(sabre.Abr):
             1, RAND_RANGE) / float(RAND_RANGE)).argmax()
 
         _delay = 0.0
-        self.history.append((self.state, quality, past_gan))
+        self.history.append((self.state, quality, self.past_gan))
         self.past_gan = past_gan
         return (quality, _delay)
