@@ -65,7 +65,6 @@ def get_buffer_level():
     global manifest
     global buffer_contents
     global buffer_fcc
-    # print(manifest.segment_time,buffer_contents,buffer_fcc)
     return manifest.segment_time * len(buffer_contents) - buffer_fcc
 
 
@@ -1497,6 +1496,7 @@ def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_00
         download_metric = network.download(size, current_segment, quality,
                                            get_buffer_level(), check_abandon)
 
+        #buffer_contents.append(download_metric.quality)
         deplete_buffer(download_metric.time)
 
         # update buffer with new download

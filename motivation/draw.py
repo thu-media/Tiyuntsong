@@ -45,16 +45,16 @@ plt.switch_backend('Agg')
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 
-plt.rcParams['axes.labelsize'] = 50
+plt.rcParams['axes.labelsize'] = 70
 plt.rcParams['axes.labelweight'] = 'bold'
-font = {'size': 50}
+font = {'size': 70}
 _color_map = color()
 matplotlib.rc('font', **font)
 os.system('mkdir imgs')
 for p in os.listdir('./test_results'):
     _filename = './test_results/' + p
     print _filename
-    fig, ax1 = plt.subplots(figsize=(30, 15), dpi=50)
+    fig, ax1 = plt.subplots(figsize=(30, 18), dpi=50)
     ax1.grid(True)
     ax1.set_title(r'\textbf{' + p.replace('_', '-') + r'}')
     ax1.set_xlabel(r'\textbf{time$(s)$}')
@@ -62,6 +62,6 @@ for p in os.listdir('./test_results'):
     _bitrate, _throughput = read_log(_filename)
     l4 = ax1.plot(_bitrate, '--', color='darkred', label=r'bitrate', lw=LW)
     l4 = ax1.plot(_throughput, color='darkblue', label=r'throughput', lw=LW)
-    ax1.legend(fontsize=50)
+    ax1.legend(fontsize=70)
     savefig('./imgs/' + p + '.pdf')
 print 'done'
