@@ -76,6 +76,7 @@ class Zero(sabre.Abr):
 
     def clear(self):
         self.history = []
+        self.quality_history = []
         self.replay_buffer = []
 
     def learn(self, ratio=1.0):
@@ -109,14 +110,16 @@ class Zero(sabre.Abr):
                     _g.append(g)
         return _g
 
+    def get_action(self):
+        return self.history
+
     def push(self, reward):
         s_batch, a_batch, r_batch, g_batch = [], [], [], []
+        print(len(self.history), len(reward))
         _index = 0
         for (state, action, gan) in self.history:
             s_batch.append(state)
-            action_vec = np.zeros(Zero.A_DIM)
-            action_vec[action] = 1
-            a_batch.append(action_vec)
+            a_batch.append(action)
             r_batch.append(reward[_index])
             g_batch.append(gan)
             _index += 1
@@ -132,19 +135,19 @@ class Zero(sabre.Abr):
         return action // Zero.A_DIM, action % Zero.A_DIM
 
     def get_quality_delay(self, segment_index):
-        if segment_index != 0:
+        if segment_index != 1:
             self.quality_history.append(
                 (sabre.played_bitrate, sabre.rebuffer_time, sabre.total_bitrate_change))
         if segment_index < 0:
             return
 
-        download_time, throughput, _, quality, _ = sabre.log_history[-1]
+        download_time, throughput, _, _, _ = sabre.log_history[-1]
         state = self.state
         state = np.roll(state, -1, axis=1)
 
         state[0, -1] = min(throughput / Zero.THROUGHPUT_NORM, 1.0)
         state[1, -1] = min(download_time / (10 * Zero.TIME_NORM), 1.0)
-        state[2, -1] = quality / self.quality_len
+        state[2, -1] = self.quality / self.quality_len
         state[3, -1] = (len(sabre.manifest.segments) -
                         segment_index) / len(sabre.manifest.segments)
         state[4, -1] = sabre.get_buffer_level() / (25 * Zero.TIME_NORM)
@@ -168,7 +171,11 @@ class Zero(sabre.Abr):
         quality = (action_cumsum > np.random.randint(
             1, RAND_RANGE) / float(RAND_RANGE)).argmax()
 
+        action_vec = np.zeros(Zero.A_DIM)
+        action_vec[quality] = 1
+
         _delay = 0.0
-        self.history.append((self.state, quality, self.past_gan))
+        self.history.append((self.state, action_vec, self.past_gan))
         self.past_gan = past_gan
+        self.quality = quality
         return (quality, _delay)

@@ -58,8 +58,8 @@ l4 = ax1.plot(_a, color='darkgreen', lw=LW, alpha=0.2)
 l4 = ax1.plot(moving_average(_a), color='darkgreen', lw=LW, label='A')
 l4 = ax1.plot(_b, color='darkblue', lw=LW, alpha=0.2)
 l4 = ax1.plot(moving_average(_b), color='darkblue', lw=LW, label='B')
-_label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh']
-_color = ['darkred', 'darkblue', 'salmon', 'gray', 'pink']
+_label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh', 'BBa']
+_color = ['darkred', 'darkblue', 'salmon', 'gray', 'pink', 'darkgreen']
 for index, p in enumerate(_tmp):
     ax1.hlines(p, 0, len(_a), linestyles="dashed", color = _color[index], label = _label[index], lw = LW)
 ax1.legend()

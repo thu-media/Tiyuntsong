@@ -7,8 +7,61 @@ from tqdm import tqdm
 from rules import rules
 from log import log
 import os
-NUM_AGENT = 2
+from multiprocessing import cpu_count
+import multiprocessing as mp
 
+NUM_AGENT = 2
+USE_CORES = cpu_count()
+
+_log = log('zero.txt')
+#log_file = open('zero.txt', 'w')
+elo_file = open('elo.txt', 'w')
+agent_list = []
+agent_elo = []
+def inital():
+    for p in range(NUM_AGENT):
+        agent_list.append(Zero(str(p)))
+        agent_elo.append(1000.0)
+
+    _tracepool = tracepool(ratio=0.01)
+
+def agent(agent_id, net_params_queue, exp_queue):
+    get_action()
+    pass
+
+def central(net_params_queues, exp_queues):
+    while True:
+        # synchronize the network parameters of work agent
+        actor_net_params = actor.get_network_params()
+        critic_net_params = critic.get_network_params()
+        for i in range(USE_CORES):
+            net_params_queues[i].put([actor_net_params, critic_net_params])
+        for i in range(USE_CORES):
+            res0, res1 = exp_queues[i].get()
+            for (s_batch, a_batch, r_batch, g_batch) in res0:
+
+    pass
+
+def multi():
+    inital()
+    net_params_queues = []
+    exp_queues = []
+    for i in range(USE_CORES):
+        net_params_queues.append(mp.Queue(1))
+        exp_queues.append(mp.Queue(1))
+
+    coordinator = mp.Process(target=central,
+                             args=(net_params_queues, exp_queues))
+    coordinator.start()
+    agents = []
+    for i in range(USE_CORES):
+        agents.append(mp.Process(target=agent,
+                                 args=(i, net_params_queues[i], exp_queues[i])))
+    for p in agents:
+        p.start()
+
+    # wait unit training is done
+    coordinator.join()
 
 def main():
     _log = log('zero.txt')
@@ -34,7 +87,7 @@ def main():
             agent_reward = []
             for _index in range(len(agent_list[0].quality_history)):
                 res = rules([agent_list[0].quality_history[_index],
-                             agent_list[-1].quality_history[_index]])
+                             agent_list[1].quality_history[_index]])
                 agent_reward.append(res)
             agent_reward = np.array(agent_reward)
             tmp_battle = rules(agent_result)

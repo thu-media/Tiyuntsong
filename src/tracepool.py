@@ -9,7 +9,7 @@ class tracepool(object):
         self.work_dir = workdir
         self.trace_list = []
         self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
-                         sabre.Dynamic, sabre.Bola, sabre.BolaEnh]
+                         sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.Bba]
         self.sample_list = []
         for p in os.listdir(self.work_dir):
             for l in os.listdir(self.work_dir + '/' + p):
