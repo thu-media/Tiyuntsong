@@ -17,36 +17,20 @@ class DualNetwork(object):
         self.scope = scope
         self.reuse = False
 
-    def attention(self, inputs, attention_size):
-        # the length of sequences processed in the antecedent RNN layer
-        inputs = tf.stack(inputs, axis=1)
-        sequence_length = inputs.get_shape()[1].value
-        # hidden size of the RNN layer
-        hidden_size = inputs.get_shape()[2].value
+        # Get all network parameters
+        self.network_params = \
+            tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
+                              scope=self.scope + '-dual')
 
-        # Attention mechanism
-        W_omega = tf.Variable(tf.random_normal(
-            [hidden_size, attention_size], stddev=0.1))
-        b_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
-        u_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
-
-        v = tf.tanh(tf.matmul(tf.reshape(
-            inputs, [-1, hidden_size]), W_omega) + tf.reshape(b_omega, [1, -1]))
-        vu = tf.matmul(v, tf.reshape(u_omega, [-1, 1]))
-        exps = tf.reshape(tf.exp(vu), [-1, sequence_length])
-        alphas = exps / tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])
-        # Output of Bi-RNN is reduced with attention vector
-        output = tf.reduce_sum(
-            inputs * tf.reshape(alphas, [-1, sequence_length, 1]), 1)
-        return output, alphas
-
-    def CNN_Core(self, x, reuse=False):
-        with tf.variable_scope(self.scope + '-cnn_core', reuse=reuse):
-            tmp = tflearn.conv_1d(
-                x, FEATURE_NUM // 4, KERNEL, activation='relu')
-            tmp = tflearn.batch_normalization(tmp)
-            tmp = tflearn.flatten(tmp)
-            return tmp
+        # Set all network parameters
+        self.input_network_params = []
+        for param in self.network_params:
+            self.input_network_params.append(
+                tf.placeholder(tf.float32, shape=param.get_shape()))
+        self.set_network_params_op = []
+        for idx, param in enumerate(self.input_network_params):
+            self.set_network_params_op.append(
+                self.network_params[idx].assign(param))
 
     def create_dual_network(self, inputs, s_dim):
         with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
@@ -62,6 +46,13 @@ class DualNetwork(object):
             self.reuse = True
             return out
 
+    def get_network_params(self):
+        return self.sess.run(self.network_params)
+
+    def set_network_params(self, input_network_params):
+        self.sess.run(self.set_network_params_op, feed_dict={
+            i: d for i, d in zip(self.input_network_params, input_network_params)
+        })
 
 class ActorNetwork(object):
     """
@@ -92,6 +83,16 @@ class ActorNetwork(object):
         self.network_params = \
             tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                               scope=self.scope + '-actor')
+
+        # Set all network parameters
+        self.input_network_params = []
+        for param in self.network_params:
+            self.input_network_params.append(
+                tf.placeholder(tf.float32, shape=param.get_shape()))
+        self.set_network_params_op = []
+        for idx, param in enumerate(self.input_network_params):
+            self.set_network_params_op.append(
+                self.network_params[idx].assign(param))
 
         # Selected action, 0-1 vector
         self.acts = tf.placeholder(tf.float32, [None, self.a_dim])
@@ -179,19 +180,13 @@ class ActorNetwork(object):
             self.inputs: state, self.y_: action
         })
 
+    def get_network_params(self):
+        return self.sess.run(self.network_params)
 
-class RudderNetwork(object):
-    #SEQ_LEN = 20
-    def __init__(self, sess, state_dim, learning_rate, scope):
-        self.sess = sess
-        self.s_dim = state_dim
-        self.lr_rate = learning_rate
-        self.scope = scope
-        self.s_dim_queue = []
-
-    def create_rudder_network(self):
-        pass
-
+    def set_network_params(self, input_network_params):
+        self.sess.run(self.set_network_params_op, feed_dict={
+            i: d for i, d in zip(self.input_network_params, input_network_params)
+        })
 
 class CriticNetwork(object):
     """
@@ -217,6 +212,16 @@ class CriticNetwork(object):
         self.network_params = \
             tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                               scope=self.scope + '-critic')
+
+        # Set all network parameters
+        self.input_network_params = []
+        for param in self.network_params:
+            self.input_network_params.append(
+                tf.placeholder(tf.float32, shape=param.get_shape()))
+        self.set_network_params_op = []
+        for idx, param in enumerate(self.input_network_params):
+            self.set_network_params_op.append(
+                self.network_params[idx].assign(param))
 
         self.lr_rate = tf.placeholder(tf.float32)
         # Set all network parameters
@@ -345,19 +350,40 @@ class GANNetwork(object):
             self.lr_rate).minimize(self.gen_loss, var_list=self.gen_vars)
         self.disc_op = tf.train.AdamOptimizer(
             self.lr_rate).minimize(self.disc_loss, var_list=self.disc_vars)
+        
+        # Get all network parameters
+        self.network_params_g = \
+            tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
+                              scope=self.scope + '-gan-g')
+        self.network_params_d = \
+            tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
+                              scope=self.scope + '-gan-d')
+        # Set all network parameters
+        self.input_network_params_g = []
+        self.input_network_params_d = []
+        for param in self.network_params_g:
+            self.input_network_params_g.append(
+                tf.placeholder(tf.float32, shape=param.get_shape()))
+        for param in self.network_params_d:
+            self.input_network_params_d.append(
+                tf.placeholder(tf.float32, shape=param.get_shape()))
+
+        self.set_network_params_op_g = []
+        self.set_network_params_op_d = []
+        for idx, param in enumerate(self.input_network_params_g):
+            self.set_network_params_op_g.append(
+                self.network_params_g[idx].assign(param))
+        for idx, param in enumerate(self.input_network_params_d):
+            self.set_network_params_op_d.append(
+                self.network_params_d[idx].assign(param))
+
 
     def create_generate_network(self):
-        # with tf.variable_scope(self.scope + '-gan-g'):
-        #    inputs = tflearn.input_data(
-        #        shape=[None, self.s_dim[0], self.s_dim[1]])
-        #dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
         with tf.variable_scope(self.scope + '-gan-g', reuse=self.reuse_gan):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
             gan_inputs = tflearn.input_data(shape=[None, GAN_CORE])
             _input = tflearn.flatten(inputs)
-            #_gan_input = tflearn.flatten(gan_inputs)
-            #print(gan_inputs.get_shape().as_list(), _gan_input.get_shape().as_list())
             _com = tflearn.merge([_input, gan_inputs], 'concat')
             _com = tflearn.flatten(_com)
             net = tflearn.fully_connected(
@@ -373,7 +399,6 @@ class GANNetwork(object):
 
     def create_discriminator_network(self, generate_network):
         with tf.variable_scope(self.scope + '-gan-d', reuse=self.reuse_disc):
-            #inputs = tflearn.input_data(shape=[None, FEATURE_NUM])
             net = tflearn.fully_connected(
                 generate_network, FEATURE_NUM, activation='leakyrelu')
             net = tflearn.batch_normalization(net)
@@ -400,6 +425,19 @@ class GANNetwork(object):
             self.gan_inputs: past_gan,
             self.inputs_d_real: d_real,
             # self.inputs_d_fake: d_fake
+        })
+
+    def get_network_params(self):
+        _params_g = self.sess.run(self.network_params_g)
+        _params_d = self.sess.run(self.network_params_d)
+        return _params_g, _params_d
+
+    def set_network_params(self, input_network_params_g, input_network_params_d):
+        self.sess.run(self.set_network_params_op_g, feed_dict={
+            i: d for i, d in zip(self.input_network_params_g, input_network_params_g)
+        })
+        self.sess.run(self.set_network_params_op_d, feed_dict={
+            i: d for i, d in zip(self.input_network_params_d, input_network_params_d)
         })
 
 

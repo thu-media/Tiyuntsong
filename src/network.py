@@ -34,7 +34,7 @@ class Zero(sabre.Abr):
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
         self.past_gan = np.zeros(Zero.GAN_CORE)
         self.quality_len = Zero.A_DIM
-
+        self.scope = scope
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         self.dual = a3c.DualNetwork(self.sess, scope)
@@ -74,6 +74,20 @@ class Zero(sabre.Abr):
             self.actor.teach(_s, _a)
             # self.replay_buffer.append((s, a, r))
 
+    def set_params(self, params):
+        (_dual_params, _actor_params, _critic_params, _gan_g, _gan_d) = params
+        self.dual.set_network_params(_dual_params)
+        self.actor.set_network_params(_actor_params)
+        self.critic.set_network_params(_critic_params)
+        self.gan.set_network_params(_gan_g, _gan_d)
+
+    def get_params(self):
+        _dual_params = self.dual.get_network_params()
+        _actor_params = self.actor.get_network_params()
+        _critic_params = self.critic.get_network_params()
+        _gan_g, _gan_d = self.gan.get_network_params()
+        return (_dual_params, _actor_params, _critic_params, _gan_g, _gan_d)
+
     def clear(self):
         self.history = []
         self.quality_history = []
@@ -112,6 +126,12 @@ class Zero(sabre.Abr):
 
     def get_action(self):
         return self.history
+
+    def set_action(self, history):
+        s_batch, a_batch, g_batch, r_batch = history
+        self.replay_buffer.append((s_batch, a_batch, r_batch, g_batch))
+        self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
+        self.past_gan = np.zeros(Zero.GAN_CORE)
 
     def push(self, reward):
         s_batch, a_batch, r_batch, g_batch = [], [], [], []

@@ -2,7 +2,7 @@ import os
 import numpy as np
 import sabre
 from rules import rules, update_elo, update_elo_2
-
+from tqdm import tqdm
 
 class tracepool(object):
     def __init__(self, workdir='./traces', ratio=0.1):
@@ -29,7 +29,7 @@ class tracepool(object):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))
 
-        for _index0 in range(len(self.abr_list)):
+        for _index0 in tqdm(range(len(self.abr_list))):
             _battle = []
             for _index in range(len(self.abr_list)):
                 tmp = [0, 0, 0]
