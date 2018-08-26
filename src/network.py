@@ -120,6 +120,7 @@ class Zero(sabre.Abr):
         _g = []
         for (_, _, r_batch, g_batch) in self.replay_buffer:
             for (r, g) in zip(r_batch, g_batch):
+                #print(r, g)
                 if r > 0:
                     _g.append(g)
         return _g
@@ -128,8 +129,8 @@ class Zero(sabre.Abr):
         return self.history
 
     def set_action(self, history):
-        s_batch, a_batch, g_batch, r_batch = history
-        self.replay_buffer.append((s_batch, a_batch, r_batch, g_batch))
+        for (s_batch, a_batch, r_batch, g_batch) in history:
+            self.replay_buffer.append((s_batch, a_batch, r_batch, g_batch))
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
         self.past_gan = np.zeros(Zero.GAN_CORE)
 
