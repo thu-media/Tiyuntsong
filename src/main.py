@@ -3,7 +3,6 @@ import math
 from network import Zero
 from tracepool import tracepool
 import numpy as np
-from tqdm import tqdm
 from rules import rules
 from log import log
 import os
@@ -85,7 +84,7 @@ def central(net_params_queues, exp_queues):
         global_agent_list.append(Zero(str(p)))
         agent_elo.append(1000.0)
 
-    _tracepool = tracepool(ratio=0.1)
+    _tracepool = tracepool(ratio=0.5)
     _split_pool, _idx_pool = chunks(_tracepool.get_list(), USE_CORES)
     while True:
         # synchronize the network parameters of work agent
@@ -103,7 +102,7 @@ def central(net_params_queues, exp_queues):
             net_params_queues[i].put([_params, _split_pool[i]])
 
         _tmp = [0, 0, 0]
-        for i in tqdm(range(USE_CORES), ascii=True):
+        for i in range(USE_CORES):
             _global_history, _trace_result = exp_queues[i].get()
             for p in range(NUM_AGENT):
                 _history = _global_history[p]
@@ -112,6 +111,7 @@ def central(net_params_queues, exp_queues):
                 global_trace_pool[_idx_pool[i][p]] = _trace_result[p]
         for _trace_res in global_trace_pool:       
             tmp_battle = rules(_trace_res)
+            _log.write_log(_trace_res)
             _tmp[np.argmax(tmp_battle)] += 1
             _tmp[-1] += 1
         _rate, agent_elo = _tracepool.battle(agent_elo, global_trace_pool)
