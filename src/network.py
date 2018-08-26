@@ -115,7 +115,7 @@ class Zero(sabre.Abr):
 
     def push(self, reward):
         s_batch, a_batch, r_batch, g_batch = [], [], [], []
-        print(len(self.history), len(reward))
+        assert len(self.history) == len(reward)
         _index = 0
         for (state, action, gan) in self.history:
             s_batch.append(state)

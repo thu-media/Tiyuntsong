@@ -33,7 +33,7 @@ def read_history(filename='elo_baseline.txt'):
     return np.array(_tmpA)
 
 
-def moving_average(data, alpha=0.91):
+def moving_average(data, alpha=0.60):
     _tmp = []
     _val = data[0]
     for p in data:

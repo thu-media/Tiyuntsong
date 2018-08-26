@@ -16,8 +16,9 @@ USE_CORES = cpu_count()
 _log = log('zero.txt')
 #log_file = open('zero.txt', 'w')
 elo_file = open('elo.txt', 'w')
-agent_list = []
+global_agent_list = []
 agent_elo = []
+
 def inital():
     for p in range(NUM_AGENT):
         agent_list.append(Zero(str(p)))
@@ -26,7 +27,32 @@ def inital():
     _tracepool = tracepool(ratio=0.01)
 
 def agent(agent_id, net_params_queue, exp_queue):
-    get_action()
+    agent_list = []
+    for p in range(NUM_AGENT):
+        agent_list.append(Zero(str(p)))
+        agent_elo.append(1000.0)
+    while True:
+        net_params, _tracepool = net_params_queue.get()
+        for p in range(NUM_AGENT):
+            agent_list[i].set_params(net_params[i])
+
+        _trace_result = []
+        for _trace in _tracepool.get_list():
+                agent_result = []
+                for _agent in agent_list:
+                    total_bitrate, total_rebuffer, total_smoothness = env.execute(
+                        abr=_agent, trace=_trace)
+                    agent_result.append(
+                        (total_bitrate, total_rebuffer, total_smoothness))
+                agent_reward = []
+                for _index in range(len(agent_list[0].quality_history)):
+                    res = rules([agent_list[0].quality_history[_index],
+                                agent_list[1].quality_history[_index]])
+                    agent_reward.append(res)
+                for _index, _agent in enumerate(agent_list):
+                    _history = _agent.get_action()
+                    _history.append(agent_reward[:, _index])
+                _trace_result.append(agent_result)
     pass
 
 def central(net_params_queues, exp_queues):
@@ -36,7 +62,7 @@ def central(net_params_queues, exp_queues):
         critic_net_params = critic.get_network_params()
         for i in range(USE_CORES):
             net_params_queues[i].put([actor_net_params, critic_net_params])
-        for i in range(USE_CORES):
+        for i in tqdm(range(USE_CORES), ascii=True):
             res0, res1 = exp_queues[i].get()
             for (s_batch, a_batch, r_batch, g_batch) in res0:
 
