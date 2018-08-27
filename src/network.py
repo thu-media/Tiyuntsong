@@ -95,7 +95,7 @@ class Zero(sabre.Abr):
 
     def learn(self, ratio=1.0):
         actor_gradient_batch, critic_gradient_batch = [], []
-        g_win = np.vstack(self._pull())
+        g_win = self._pull()
         for (s_batch, a_batch, r_batch, g_batch) in self.replay_buffer:
             s_batch = np.stack(s_batch, axis=0)
             a_batch = np.vstack(a_batch)
@@ -104,7 +104,9 @@ class Zero(sabre.Abr):
             actor_gradient, critic_gradient, _ = a3c.compute_gradients(s_batch, a_batch, r_batch, g_batch,
                                                                        actor=self.actor, critic=self.critic,
                                                                        lr_ratio=ratio)
-            self.gan.optimize(s_batch, g_batch, g_win)
+            if len(g_win) > 0:
+                g_win = np.vstack(g_win)
+                self.gan.optimize(s_batch, g_batch, g_win)
             actor_gradient_batch.append(actor_gradient)
             critic_gradient_batch.append(critic_gradient)
 
@@ -123,6 +125,8 @@ class Zero(sabre.Abr):
                 #print(r, g)
                 if r > 0:
                     _g.append(g)
+                # if len(_g) > len(r_batch):
+                #     break
         return _g
 
     def get_action(self):

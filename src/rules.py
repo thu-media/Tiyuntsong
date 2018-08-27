@@ -1,8 +1,11 @@
 import numpy as np
 import elo
 EPS = 100.0
+
+
 def rules(agent_result):
-    return threshold_rules(agent_result)
+    return basic_rules(agent_result)
+
 
 def threshold_rules(agent_results, threshold=0.01 * 198 * 3000):
     b_0, r_0, _ = agent_results[0]
@@ -16,6 +19,9 @@ def threshold_rules(agent_results, threshold=0.01 * 198 * 3000):
 def update_elo(elo_list, i0, i1, res):
     if res[0] > 0:
         elo_list[i0], elo_list[i1] = elo.rate_1vs1(elo_list[i0], elo_list[i1])
+    elif res[0] == 0.5:
+        elo_list[i0], elo_list[i1] = elo.rate_1vs1(
+            elo_list[i0], elo_list[i1], True)
     else:
         elo_list[i1], elo_list[i0] = elo.rate_1vs1(elo_list[i1], elo_list[i0])
     return elo_list
@@ -26,6 +32,9 @@ def update_elo_2(agent_list, elo_list, i0, i1, res):
     if res[0] > 0:
         agent_list[i0], _ = elo.rate_1vs1(
             agent_list[i0], elo_list[i1])
+    elif res[0] == 0.5:
+        agent_list[i0], _ = elo.rate_1vs1(
+            agent_list[i0], elo_list[i1], True)
     else:
         _, agent_list[i0] = elo.rate_1vs1(
             elo_list[i1], agent_list[i0])
@@ -46,7 +55,7 @@ def basic_rules(agent_result):
             if _cof0 > _cof1:
                 return [0, 1]
             elif _cof0 == _cof1:
-                return [1, 0]
+                return [0.5, 0.5]
             else:
                 return [1, 0]
     elif total_rebuffer0 == total_rebuffer1:
@@ -63,7 +72,7 @@ def basic_rules(agent_result):
             if _cof0 > _cof1:
                 return [0, 1]
             elif _cof0 == _cof1:
-                return [1, 0]
+                return [0.5, 0.5]
             else:
                 return [1, 0]
         elif total_bitrate0 == total_bitrate1:

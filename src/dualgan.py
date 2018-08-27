@@ -3,8 +3,8 @@ import tensorflow as tf
 import tflearn
 
 
-GAMMA = 0.99
-ENTROPY_WEIGHT = 0.3
+GAMMA = 0.6
+ENTROPY_WEIGHT = 0.01
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 GAN_CORE = 16

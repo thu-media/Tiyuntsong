@@ -51,14 +51,14 @@ fig, ax1 = plt.subplots(figsize=(20, 12), dpi=50)
 _a, _b = read_csv()
 _tmp = read_history()
 ax1.grid(True)
-ax1.set_title('Tiyuntsong without GAN')
+ax1.set_title('Tiyuntsong')
 ax1.set_ylabel('elo')
 ax1.set_xlabel('step')
 l4 = ax1.plot(_a, color='darkgreen', lw=LW, alpha=0.2)
 l4 = ax1.plot(moving_average(_a), color='darkgreen', lw=LW, label='A')
 l4 = ax1.plot(_b, color='darkblue', lw=LW, alpha=0.2)
 l4 = ax1.plot(moving_average(_b), color='darkblue', lw=LW, label='B')
-_label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh', 'BBa']
+_label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh', 'Constrained']
 _color = ['darkred', 'darkblue', 'salmon', 'gray', 'pink', 'darkgreen']
 for index, p in enumerate(_tmp):
     ax1.hlines(p, 0, len(_a), linestyles="dashed", color = _color[index], label = _label[index], lw = LW)

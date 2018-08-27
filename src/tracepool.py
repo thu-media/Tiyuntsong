@@ -9,12 +9,22 @@ class tracepool(object):
         self.work_dir = workdir
         self.trace_list = []
         self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
-                         sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.Bba]
+                         sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.ConstrainRule]
         self.sample_list = []
-        for p in os.listdir(self.work_dir):
-            for l in os.listdir(self.work_dir + '/' + p):
-                if np.random.rand() <= ratio:
+        if ratio > 1.0:
+            _index = 0
+            for p in os.listdir(self.work_dir):
+                for l in os.listdir(self.work_dir + '/' + p):
+                    #if _index <= ratio:
                     self.trace_list.append(self.work_dir + '/' + p + '/' + l)
+                    _index += 1
+                    if _index > ratio:
+                        break
+        else:
+            for p in os.listdir(self.work_dir):
+                for l in os.listdir(self.work_dir + '/' + p):
+                    if np.random.rand() <= ratio:
+                        self.trace_list.append(self.work_dir + '/' + p + '/' + l)
         self.elo_score = []
 
         for p in self.abr_list:

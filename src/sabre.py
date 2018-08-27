@@ -994,6 +994,19 @@ class BolaEnh(Abr):
 abr_list['bolae'] = BolaEnh
 abr_default = 'bolae'
 
+class ConstrainRule(Abr):
+
+    def __init__(self, config):
+        self.no_ibr = config['no_ibr']
+
+    def get_quality_delay(self, segment_index):
+        global manifest
+
+        quality = len(manifest.bitrates) // 2
+
+        return (quality, 0)
+
+abr_list['ConstrainRule'] = ConstrainRule
 
 class ThroughputRule(Abr):
 

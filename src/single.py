@@ -19,7 +19,7 @@ def main():
     for p in range(NUM_AGENT):
         agent_list.append(Zero(str(p)))
         agent_elo.append(1000.0)
-    _tracepool = tracepool(ratio=0.1)
+    _tracepool = tracepool(ratio=21)
     while True:
         _tmp = [0, 0, 0]
         _state_stack, _reward_stack = [], []
