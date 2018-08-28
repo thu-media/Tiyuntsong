@@ -121,7 +121,7 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
+            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
                                                          tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
@@ -155,8 +155,10 @@ class ActorNetwork(object):
         return _gan, _pred
 
     def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0, g_inputs=None):
-        _entropy = self.basic_entropy * \
-            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        if lr_ratio < 0.5:
+            _entropy = self.basic_entropy * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
+        else:
+            _entropy = -self.basic_entropy * (lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.gan_inputs: g_inputs,
@@ -170,8 +172,12 @@ class ActorNetwork(object):
         _dict = {}
         for i, d in zip(self.actor_gradients, actor_gradients):
             _dict[i] = d
-        _lr = self.learning_rate * \
-            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        if lr_ratio < 0.5:
+            _lr = self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
+        else:
+            _lr = -self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS))
+        #_lr = self.learning_rate * \
+        #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
         return self.sess.run(self.optimize, feed_dict=_dict)
 
@@ -295,8 +301,12 @@ class CriticNetwork(object):
         for i, d in zip(self.critic_gradients, critic_gradients):
             _dict[i] = d
 
-        _lr = self.learning_rate * \
-            (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+        if lr_ratio < 0.5:
+            _lr = self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
+        else:
+            _lr = -self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS))
+        #_lr = self.learning_rate * \
+        #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
         return self.sess.run(self.optimize, feed_dict=_dict)
 
