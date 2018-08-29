@@ -4,7 +4,7 @@ import tflearn
 
 
 GAMMA = 0.6
-ENTROPY_WEIGHT = 0.01
+ENTROPY_WEIGHT = 0.1
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 GAN_CORE = 16
@@ -21,7 +21,6 @@ class DualNetwork(object):
         self.network_params = \
             tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                               scope=self.scope + '-dual')
-
         # Set all network parameters
         self.input_network_params = []
         for param in self.network_params:
@@ -31,6 +30,69 @@ class DualNetwork(object):
         for idx, param in enumerate(self.input_network_params):
             self.set_network_params_op.append(
                 self.network_params[idx].assign(param))
+
+    def attention(self, inputs, attention_size):
+        # the length of sequences processed in the antecedent RNN layer
+        inputs = tf.stack(inputs, axis=1)
+        sequence_length = inputs.get_shape()[1].value
+        # hidden size of the RNN layer
+        hidden_size = inputs.get_shape()[2].value
+
+        # Attention mechanism
+        W_omega = tf.Variable(tf.random_normal(
+            [hidden_size, attention_size], stddev=0.1))
+        b_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+        u_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
+
+        v = tf.tanh(tf.matmul(tf.reshape(
+            inputs, [-1, hidden_size]), W_omega) + tf.reshape(b_omega, [1, -1]))
+        vu = tf.matmul(v, tf.reshape(u_omega, [-1, 1]))
+        exps = tf.reshape(tf.exp(vu), [-1, sequence_length])
+        alphas = exps / tf.reshape(tf.reduce_sum(exps, 1), [-1, 1])
+        # Output of Bi-RNN is reduced with attention vector
+        output = tf.reduce_sum(
+            inputs * tf.reshape(alphas, [-1, sequence_length, 1]), 1)
+        return output, alphas
+
+    def create_dual_network_factory(self, inputs, s_dim, nettype='default'):
+        if nettype == 'dual':
+            return self.create_dual_network(inputs, s_dim)
+        elif nettype == 'fc':
+            return self.create_dual_network_fc(inputs, s_dim)
+        elif nettype == '2dcnn':
+            return self.create_dual_network_2d_cnn(inputs, s_dim)
+        elif nettype == 'lstm':
+            return self.create_dual_network_lstm(inputs, s_dim)
+        else:
+            return None
+
+    def create_dual_network_fc(self, inputs, s_dim):
+        with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
+            net = tflearn.fully_connected(
+                inputs, FEATURE_NUM, activation='relu')
+            net = tflearn.fully_connected(
+                net, FEATURE_NUM * 2, activation='relu')
+            out = tflearn.fully_connected(net, FEATURE_NUM, activation='relu')
+            self.reuse = True
+            return out
+
+    def create_dual_network_2d_cnn(self, inputs, s_dim):
+        with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
+            net = tflearn.conv_2d(inputs, FEATURE_NUM, 3, activation='relu')
+            net = tflearn.max_pool_2d(net, FEATURE_NUM, 3)
+            net = tflearn.conv_2d(inputs, FEATURE_NUM, 3, activation='relu')
+            net = tflearn.max_pool_2d(net, FEATURE_NUM, 3)
+            out = tflearn.fully_connected(net, FEATURE_NUM, activation='relu')
+            self.reuse = True
+            return out
+
+    def create_dual_network_lstm(self, inputs, s_dim):
+        with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
+            net = tflearn.lstm(inputs, FEATURE_NUM, activation='relu')
+            net = tflearn.lstm(net, FEATURE_NUM, activation='relu')
+            out, _ = self.attention(net, FEATURE_NUM)
+            self.reuse = True
+            return out
 
     def create_dual_network(self, inputs, s_dim):
         with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
@@ -61,7 +123,7 @@ class ActorNetwork(object):
     of all actions.
     """
 
-    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual, gan):
+    def __init__(self, sess, state_dim, action_dim, learning_rate, scope, dual, gan, nettype='dual'):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
@@ -76,7 +138,7 @@ class ActorNetwork(object):
         self.gan = gan
         self.gan_inputs = tf.placeholder(
             tf.float32, [None, GAN_CORE])
-
+        self.nettype = nettype
         # Create the actor network
         self.inputs, self.out = self.create_actor_network()
 
@@ -136,7 +198,8 @@ class ActorNetwork(object):
         with tf.variable_scope(self.scope + '-actor'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        dense_net_0 = self.dual.create_dual_network_factory(
+            inputs, self.s_dim, self.nettype)
         dense_net_0 = tflearn.merge([dense_net_0, self.gan_inputs], 'concat')
         dense_net_0 = tflearn.flatten(dense_net_0)
         with tf.variable_scope(self.scope + '-actor'):
@@ -206,14 +269,14 @@ class CriticNetwork(object):
     On policy: the action must be obtained from the output of the Actor network.
     """
 
-    def __init__(self, sess, state_dim, learning_rate, scope, dual, gan):
+    def __init__(self, sess, state_dim, learning_rate, scope, dual, gan, nettype='dual'):
         self.sess = sess
         self.s_dim = state_dim
         #self.lr_rate = learning_rate
         self.learning_rate = learning_rate
         self.scope = scope
         self.dual = dual
-
+        self.nettype = nettype
         self.gan = gan
         self.gan_inputs = tf.placeholder(tf.float32, [None, GAN_CORE])
 
@@ -266,7 +329,8 @@ class CriticNetwork(object):
         with tf.variable_scope(self.scope + '-critic'):
             inputs = tflearn.input_data(
                 shape=[None, self.s_dim[0], self.s_dim[1]])
-        dense_net_0 = self.dual.create_dual_network(inputs, self.s_dim)
+        dense_net_0 = self.dual.create_dual_network_factory(
+            inputs, self.s_dim, self.nettype)
         dense_net_0 = tflearn.merge([dense_net_0, self.gan_inputs], 'concat')
         dense_net_0 = tflearn.flatten(dense_net_0)
         with tf.variable_scope(self.scope + '-critic'):
@@ -351,11 +415,13 @@ class GANNetwork(object):
         self.inputs_d_fake, self.disc_fake = self.create_discriminator_network(
             self.generate)
 
-        #https://arxiv.org/pdf/1611.04076.pdf
-        #L2 GAN LOSS
-        self.gen_loss = 0.5 * tf.reduce_mean(tflearn.mean_square(self.disc_fake,1.))
+        # https://arxiv.org/pdf/1611.04076.pdf
+        # L2 GAN LOSS
+        self.gen_loss = 0.5 * \
+            tf.reduce_mean(tflearn.mean_square(self.disc_fake, 1.))
         #-tf.reduce_mean(tf.log(self.disc_fake))
-        self.disc_loss = 0.5 * (tf.reduce_mean(tflearn.mean_square(self.disc_real,1.)) + tf.reduce_mean(tflearn.mean_square(self.disc_real,0.)))
+        self.disc_loss = 0.5 * (tf.reduce_mean(tflearn.mean_square(
+            self.disc_real, 1.)) + tf.reduce_mean(tflearn.mean_square(self.disc_real, 0.)))
         #-(tf.reduce_mean(tf.log(self.disc_real)) + tf.reduce_mean(tf.log(1. - self.disc_fake)))
         #tflearn.mean_square(tf.log(self.discriminator), self.out)
 
@@ -363,9 +429,9 @@ class GANNetwork(object):
             self.scope + '-gan-g')
         self.disc_vars = tflearn.get_layer_variables_by_scope(
             self.scope + '-gan-d')
-        self.gen_op = tf.train.AdamOptimizer(
+        self.gen_op = tf.train.RMSPropOptimizer(
             self.lr_rate).minimize(self.gen_loss, var_list=self.gen_vars)
-        self.disc_op = tf.train.AdamOptimizer(
+        self.disc_op = tf.train.RMSPropOptimizer(
             self.lr_rate).minimize(self.disc_loss, var_list=self.disc_vars)
 
         # Get all network parameters

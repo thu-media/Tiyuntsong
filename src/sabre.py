@@ -1376,7 +1376,7 @@ def execute(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_bus_00
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Run in verbose mode.')
     if argv is None:
-        args = parser.parse_args(None)
+        args = parser.parse_args([])
     else:
         args = parser.parse_args(argv.split(' '))
     args.abr = abr
@@ -1628,9 +1628,9 @@ def execute_model(abr, video='./videos/bbb.json', trace='./traces/4Glogs/report_
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Run in verbose mode.')
     if argv is None:
-        args = parser.parse_args(None)
-    else:
-        args = parser.parse_args(argv.split(' '))
+        args = parser.parse_args([])
+    #else:
+    #    args = parser.parse_args(argv.split(' '))
     args.abr = abr
     args.movie = video
     args.network = trace

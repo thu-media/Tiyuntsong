@@ -7,10 +7,17 @@ from tqdm import tqdm
 from rules import rules
 from log import log
 import os
+import sys
 NUM_AGENT = 2
 AUTO_SAVE = True
 MODEL_SAVE_NAME = 'model/best'
 os.system('mkdir model')
+
+if len(sys.argv) > 1:
+    nettype = sys.argv[1]
+else:
+    nettype = 'dual'
+
 def main():
     _max_score = 0.0
     _log = log('zero.txt')
@@ -19,14 +26,14 @@ def main():
     agent_list = []
     agent_elo = []
     for p in range(NUM_AGENT):
-        agent_list.append(Zero(str(p)))
+        agent_list.append(Zero(str(p), nettype=nettype))
         agent_elo.append(1000.0)
-    _tracepool = tracepool(ratio=0.8)
+    _tracepool = tracepool(ratio=0.1)
     while True:
         _tmp = [0, 0, 0]
         _state_stack, _reward_stack = [], []
         _trace_result = []
-        for _trace in tqdm(_tracepool.get_list_shuffle(),ascii=True):
+        for _trace in tqdm(_tracepool.get_list_shuffle(), ascii=True):
             agent_result = []
             for _agent in agent_list:
                 total_bitrate, total_rebuffer, total_smoothness = env.execute(
@@ -54,7 +61,7 @@ def main():
         # agent_list[_update].teach(agent_list[_clear].pull())
         for _agent in agent_list:
             _agent.clear()
-        
+
         agent_elo = []
         for p in range(NUM_AGENT):
             agent_elo.append(1000.0)
@@ -77,7 +84,7 @@ def main():
 
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%',
               ',', round(_tmp[1] * 100.0 / _tmp[-1], 2), '%')
-              
+
         _log.write_line()
         os.system('python draw.py')
 

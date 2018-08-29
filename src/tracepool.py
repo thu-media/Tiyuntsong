@@ -8,9 +8,9 @@ from tqdm import tqdm
 class tracepool(object):
     def __init__(self, workdir='./traces', ratio=0.8):
         self.work_dir = workdir
-        self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
-                         sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.ConstrainRule]
-        #[sabre.ThroughputRule, sabre.ConstrainRule]
+        #self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
+        #                 sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.ConstrainRule]
+        self.abr_list = [sabre.ThroughputRule, sabre.ConstrainRule]
         self.sample_list = []
         self.trace_list_all = []
         for p in os.listdir(self.work_dir):
@@ -59,7 +59,8 @@ class tracepool(object):
         return self.trace_list
 
     def get_list_shuffle(self):
-        return np.random.shuffle(self.trace_list)
+        np.random.shuffle(self.trace_list)
+        return self.trace_list
 
     def battle(self, agent_elo, agent_result):
         ret = []

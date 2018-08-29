@@ -28,7 +28,7 @@ class Zero(sabre.Abr):
     GRADIENT_BATCH_SIZE = 32
     GAN_CORE = 16
 
-    def __init__(self, scope):
+    def __init__(self, scope, nettype='dual'):
         self.quality = 0
         # self.last_quality = 0
         self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
@@ -44,11 +44,11 @@ class Zero(sabre.Abr):
                                       state_dim=[
                                           Zero.S_INFO, Zero.S_LEN], action_dim=self.quality_len,
                                       learning_rate=Zero.ACTOR_LR_RATE, scope=scope,
-                                      dual=self.dual, gan=self.gan)
+                                      dual=self.dual, gan=self.gan, nettype=nettype)
         self.critic = a3c.CriticNetwork(self.sess,
                                         state_dim=[Zero.S_INFO, Zero.S_LEN],
                                         learning_rate=Zero.CRITIC_LR_RATE, scope=scope,
-                                        dual=self.dual, gan=self.gan)
+                                        dual=self.dual, gan=self.gan, nettype=nettype)
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
         self.history = []
@@ -62,6 +62,7 @@ class Zero(sabre.Abr):
         # self.r_batch = []
         # self.actor_gradient_batch = []
         # self.critic_gradient_batch = []
+
     def save(self, filename):
         self.saver.save(self.sess, filename + ".ckpt")
 
