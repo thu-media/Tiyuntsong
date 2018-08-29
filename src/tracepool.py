@@ -30,8 +30,8 @@ class tracepool(object):
 
     def sample(self):
         print('generating samples')
-        for _trace in self.get_list():
-            for _index, _abr in tqdm(enumerate(self.abr_list),ascii=True):
+        for _trace in tqdm(self.get_list(),ascii=True):
+            for _index, _abr in enumerate(self.abr_list):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))
 
