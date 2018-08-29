@@ -33,7 +33,7 @@ def read_history(filename='elo_baseline.txt'):
     return np.array(_tmpA)
 
 
-def moving_average(data, alpha=0.60):
+def moving_average(data, alpha=0.91):
     _tmp = []
     _val = data[0]
     for p in data:
@@ -59,6 +59,7 @@ l4 = ax1.plot(moving_average(_a), color='darkgreen', lw=LW, label='A')
 l4 = ax1.plot(_b, color='darkblue', lw=LW, alpha=0.2)
 l4 = ax1.plot(moving_average(_b), color='darkblue', lw=LW, label='B')
 _label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh', 'Constrained']
+#_label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh', 'Constrained']
 _color = ['darkred', 'darkblue', 'salmon', 'gray', 'pink', 'darkgreen']
 for index, p in enumerate(_tmp):
     ax1.hlines(p, 0, len(_a), linestyles="dashed", color = _color[index], label = _label[index], lw = LW)

@@ -4,27 +4,23 @@ import sabre
 from rules import rules, update_elo, update_elo_2
 from tqdm import tqdm
 
+
 class tracepool(object):
-    def __init__(self, workdir='./traces', ratio=0.1):
+    def __init__(self, workdir='./traces', ratio=0.8):
         self.work_dir = workdir
-        self.trace_list = []
         self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
                          sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.ConstrainRule]
+        #[sabre.ThroughputRule, sabre.ConstrainRule]
         self.sample_list = []
-        if ratio > 1.0:
-            _index = 0
-            for p in os.listdir(self.work_dir):
-                for l in os.listdir(self.work_dir + '/' + p):
-                    #if _index <= ratio:
-                    self.trace_list.append(self.work_dir + '/' + p + '/' + l)
-                    _index += 1
-                    if _index > ratio:
-                        break
-        else:
-            for p in os.listdir(self.work_dir):
-                for l in os.listdir(self.work_dir + '/' + p):
-                    if np.random.rand() <= ratio:
-                        self.trace_list.append(self.work_dir + '/' + p + '/' + l)
+        self.trace_list_all = []
+        for p in os.listdir(self.work_dir):
+            for l in os.listdir(self.work_dir + '/' + p):
+                if np.random.rand() <= ratio:
+                    self.trace_list_all.append(
+                        self.work_dir + '/' + p + '/' + l)
+        _trace_len = int(len(self.trace_list_all) * ratio)
+        self.trace_list = self.trace_list_all[:_trace_len]
+        self.test_list = self.trace_list_all[_trace_len+1:]
         self.elo_score = []
 
         for p in self.abr_list:
@@ -53,7 +49,7 @@ class tracepool(object):
                     tmp[-1] += 1
                 _battle.append(round(tmp[0] * 100.0 / tmp[-1], 2))
             print(_index0, _battle)
-        log_file = open('elo_baseline.txt','w')
+        log_file = open('elo_baseline.txt', 'w')
         for p in self.elo_score:
             log_file.write(str(p) + ' ')
         log_file.close()
@@ -61,6 +57,9 @@ class tracepool(object):
 
     def get_list(self):
         return self.trace_list
+
+    def get_list_shuffle(self):
+        return np.random.shuffle(self.trace_list)
 
     def battle(self, agent_elo, agent_result):
         ret = []

@@ -54,6 +54,7 @@ class DualNetwork(object):
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
 
+
 class ActorNetwork(object):
     """
     Input to the network is the state, output is the distribution
@@ -122,7 +123,7 @@ class ActorNetwork(object):
             )
         ) \
             + self.entropy * tf.reduce_sum(tf.multiply(self.out,
-                                                         tf.log(self.out + ENTROPY_EPS)))
+                                                       tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
         self.actor_gradients = tf.gradients(self.obj, self.network_params)
@@ -156,9 +157,11 @@ class ActorNetwork(object):
 
     def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0, g_inputs=None):
         if lr_ratio < 0.5:
-            _entropy = self.basic_entropy * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
+            _entropy = self.basic_entropy * \
+                ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
         else:
-            _entropy = -self.basic_entropy * (lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
+            _entropy = -self.basic_entropy * \
+                (lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         return self.sess.run(self.actor_gradients, feed_dict={
             self.inputs: inputs,
             self.gan_inputs: g_inputs,
@@ -173,10 +176,12 @@ class ActorNetwork(object):
         for i, d in zip(self.actor_gradients, actor_gradients):
             _dict[i] = d
         if lr_ratio < 0.5:
-            _lr = self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
+            _lr = self.learning_rate * \
+                ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
         else:
-            _lr = -self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS))
-        #_lr = self.learning_rate * \
+            _lr = -self.learning_rate * \
+                ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS))
+        # _lr = self.learning_rate * \
         #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
         return self.sess.run(self.optimize, feed_dict=_dict)
@@ -193,6 +198,7 @@ class ActorNetwork(object):
         self.sess.run(self.set_network_params_op, feed_dict={
             i: d for i, d in zip(self.input_network_params, input_network_params)
         })
+
 
 class CriticNetwork(object):
     """
@@ -302,10 +308,12 @@ class CriticNetwork(object):
             _dict[i] = d
 
         if lr_ratio < 0.5:
-            _lr = self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
+            _lr = self.learning_rate * \
+                ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
         else:
-            _lr = -self.learning_rate * ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS))
-        #_lr = self.learning_rate * \
+            _lr = -self.learning_rate * \
+                ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS))
+        # _lr = self.learning_rate * \
         #    (lr_ratio - 1.0 + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS)
         _dict[self.lr_rate] = _lr
         return self.sess.run(self.optimize, feed_dict=_dict)
@@ -339,17 +347,16 @@ class GANNetwork(object):
         #self.dual = dual
         #self.critic = critic
         self.inputs_g, self.gan_inputs, self.generate = self.create_generate_network()
-        self.inputs_d_real, self.disc_real = self.create_discriminator_network(
-            self.generate)
+        self.inputs_d_real, self.disc_real = self.create_discriminator_network_real()
         self.inputs_d_fake, self.disc_fake = self.create_discriminator_network(
             self.generate)
 
-        #self.out = tf.placeholder(tf.float32, [None, 1])
-
-        self.gen_loss = -tf.reduce_mean(tf.log(self.disc_fake))
-        self.disc_loss = - \
-            tf.reduce_mean(tf.log(self.disc_real) +
-                           tf.log(1. - self.disc_fake))
+        #https://arxiv.org/pdf/1611.04076.pdf
+        #L2 GAN LOSS
+        self.gen_loss = 0.5 * tf.reduce_mean(tflearn.mean_square(self.disc_fake,1.))
+        #-tf.reduce_mean(tf.log(self.disc_fake))
+        self.disc_loss = 0.5 * (tf.reduce_mean(tflearn.mean_square(self.disc_real,1.)) + tf.reduce_mean(tflearn.mean_square(self.disc_real,0.)))
+        #-(tf.reduce_mean(tf.log(self.disc_real)) + tf.reduce_mean(tf.log(1. - self.disc_fake)))
         #tflearn.mean_square(tf.log(self.discriminator), self.out)
 
         self.gen_vars = tflearn.get_layer_variables_by_scope(
@@ -360,7 +367,7 @@ class GANNetwork(object):
             self.lr_rate).minimize(self.gen_loss, var_list=self.gen_vars)
         self.disc_op = tf.train.AdamOptimizer(
             self.lr_rate).minimize(self.disc_loss, var_list=self.disc_vars)
-        
+
         # Get all network parameters
         self.network_params_g = \
             tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
@@ -386,7 +393,6 @@ class GANNetwork(object):
         for idx, param in enumerate(self.input_network_params_d):
             self.set_network_params_op_d.append(
                 self.network_params_d[idx].assign(param))
-
 
     def create_generate_network(self):
         with tf.variable_scope(self.scope + '-gan-g', reuse=self.reuse_gan):
@@ -418,6 +424,19 @@ class GANNetwork(object):
             out = tflearn.fully_connected(net, 1, activation='sigmoid')
             self.reuse_disc = True
             return generate_network, out
+
+    def create_discriminator_network_real(self):
+        with tf.variable_scope(self.scope + '-gan-d', reuse=self.reuse_disc):
+            inputs = tflearn.input_data(shape=[None, GAN_CORE])
+            net = tflearn.fully_connected(
+                inputs, FEATURE_NUM, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            net = tflearn.fully_connected(
+                net, FEATURE_NUM // 2, activation='leakyrelu')
+            net = tflearn.batch_normalization(net)
+            out = tflearn.fully_connected(net, 1, activation='sigmoid')
+            self.reuse_disc = True
+            return inputs, out
 
     def get_gan(self, state_input, past_gan):
         state_input = np.array(state_input)

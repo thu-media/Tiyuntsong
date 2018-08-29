@@ -50,6 +50,7 @@ class Zero(sabre.Abr):
                                         learning_rate=Zero.CRITIC_LR_RATE, scope=scope,
                                         dual=self.dual, gan=self.gan)
         self.sess.run(tf.global_variables_initializer())
+        self.saver = tf.train.Saver()
         self.history = []
         self.quality_history = []
         self.replay_buffer = []
@@ -61,6 +62,8 @@ class Zero(sabre.Abr):
         # self.r_batch = []
         # self.actor_gradient_batch = []
         # self.critic_gradient_batch = []
+    def save(self, filename):
+        self.saver.save(self.sess, filename + ".ckpt")
 
     def teach(self, buffer):
         for (s_batch, a_batch, r_batch) in buffer:
