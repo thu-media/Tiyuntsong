@@ -31,11 +31,11 @@ class tracepool(object):
     def sample(self):
         print('generating samples')
         for _trace in self.get_list():
-            for _index, _abr in enumerate(self.abr_list):
+            for _index, _abr in tqdm(enumerate(self.abr_list),ascii=True):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))
 
-        for _index0 in tqdm(range(len(self.abr_list))):
+        for _index0 in range(len(self.abr_list)):
             _battle = []
             for _index in range(len(self.abr_list)):
                 tmp = [0, 0, 0]
