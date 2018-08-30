@@ -8,16 +8,15 @@ from tqdm import tqdm
 class tracepool(object):
     def __init__(self, workdir='./traces', ratio=0.8):
         self.work_dir = workdir
-        #self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
-        #                 sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.ConstrainRule]
-        self.abr_list = [sabre.ThroughputRule, sabre.ConstrainRule]
+        self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
+                         sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.ConstrainRule]
+        #[sabre.ThroughputRule, sabre.ConstrainRule]
         self.sample_list = []
         self.trace_list_all = []
         for p in os.listdir(self.work_dir):
             for l in os.listdir(self.work_dir + '/' + p):
-                if np.random.rand() <= ratio:
-                    self.trace_list_all.append(
-                        self.work_dir + '/' + p + '/' + l)
+                self.trace_list_all.append(
+                    self.work_dir + '/' + p + '/' + l)
         _trace_len = int(len(self.trace_list_all) * ratio)
         self.trace_list = self.trace_list_all[:_trace_len]
         self.test_list = self.trace_list_all[_trace_len+1:]
@@ -30,7 +29,7 @@ class tracepool(object):
 
     def sample(self):
         print('generating samples')
-        for _trace in tqdm(self.get_list(),ascii=True):
+        for _trace in tqdm(self.get_test_set(),ascii=True):
             for _index, _abr in enumerate(self.abr_list):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))
@@ -39,7 +38,7 @@ class tracepool(object):
             _battle = []
             for _index in range(len(self.abr_list)):
                 tmp = [0, 0, 0]
-                for _trace_index in range(len(self.get_list())):
+                for _trace_index in range(len(self.get_test_set())):
                     res = rules([self.sample_list[_index0][_trace_index],
                                  self.sample_list[_index][_trace_index]])
                     if _index0 < _index:
@@ -55,12 +54,15 @@ class tracepool(object):
         log_file.close()
         print(self.elo_score)
 
+    def get_test_set(self):
+        return self.test_list
+
     def get_list(self):
         return self.trace_list
 
-    def get_list_shuffle(self):
+    def get_list_shuffle(self, sample=15):
         np.random.shuffle(self.trace_list)
-        return self.trace_list
+        return self.trace_list[:sample]
 
     def battle(self, agent_elo, agent_result):
         ret = []
@@ -73,7 +75,7 @@ class tracepool(object):
         ret = []
         for _index in range(len(self.abr_list)):
             tmp = [0, 0, 0]
-            for _trace_index in range(len(self.get_list())):
+            for _trace_index in range(len(self.get_test_set())):
                 res = rules(
                     [agent_result[_trace_index][index], self.sample_list[_index][_trace_index]])
                 agent_elo = update_elo_2(
