@@ -20,6 +20,8 @@ class tracepool(object):
         _trace_len = int(len(self.trace_list_all) * ratio)
         self.trace_list = self.trace_list_all[:_trace_len]
         self.test_list = self.trace_list_all[_trace_len+1:]
+        _trace_len = int(len(self.test_list) * (1 - ratio))
+        self.test_list = self.test_list[:_trace_len]
         self.elo_score = []
 
         for p in self.abr_list:
@@ -29,7 +31,7 @@ class tracepool(object):
 
     def sample(self):
         print('generating samples')
-        for _trace in tqdm(self.get_test_set(),ascii=True):
+        for _trace in tqdm(self.get_test_set(), ascii=True):
             for _index, _abr in enumerate(self.abr_list):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))
