@@ -4,7 +4,7 @@ import tflearn
 
 
 GAMMA = 0.6
-ENTROPY_WEIGHT = 0.01
+ENTROPY_WEIGHT = 0.3
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 GAN_CORE = 16
@@ -122,7 +122,7 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
+            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
                                                        tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here
@@ -156,7 +156,7 @@ class ActorNetwork(object):
         return _gan, _pred
 
     def get_gradients(self, inputs, acts, act_grad_weights, lr_ratio=1.0, g_inputs=None):
-        if lr_ratio < 0.5:
+        if lr_ratio >= 0.5:
             _entropy = self.basic_entropy * \
                 ((lr_ratio + ENTROPY_EPS) * np.log(lr_ratio + ENTROPY_EPS) + 2.0)
         else:
