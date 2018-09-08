@@ -6,13 +6,22 @@ EPS = 100.0
 def rules(agent_result):
     return basic_rules(agent_result)
 
+def poor_rules(agent_results):
+    b_0, r_0, _ = agent_results[0]
+    b_1, r_1, _ = agent_results[1]
+    tmp = [0, 0]
+    tmp[np.argmax([b_0, b_1])] = 1.0
+    return tmp
 
 def threshold_rules(agent_results, threshold=0.01 * 198 * 3000):
     b_0, r_0, _ = agent_results[0]
     b_1, r_1, _ = agent_results[1]
     _tmp = [0, 0]
-    _win = np.argmax([b_0 / (r_0 + EPS), b_1 / (r_1 + EPS)])
-    _tmp[_win] = 1.0
+    if b_0 == b_1 and r_0 == r_1:
+        return [1, 1]
+    else:
+        _win = np.argmax([b_0 / (r_0 + EPS), b_1 / (r_1 + EPS)])
+        _tmp[_win] = 1.0
     return _tmp
 
 
@@ -42,8 +51,10 @@ def update_elo_2(agent_list, elo_list, i0, i1, res):
 
 
 def basic_rules(agent_result):
-    total_bitrate0, total_rebuffer0, _ = agent_result[0]
-    total_bitrate1, total_rebuffer1, _ = agent_result[1]
+    total_bitrate0, total_rebuffer0, total_smoothness0 = agent_result[0]
+    total_bitrate1, total_rebuffer1, total_smoothness1 = agent_result[1]
+    total_smoothness0 = total_smoothness0 / total_bitrate0
+    total_smoothness1 = total_smoothness1 / total_bitrate1
     if total_rebuffer0 < total_rebuffer1:
         if total_bitrate0 > total_bitrate1:
             return [1, 0]
@@ -55,14 +66,18 @@ def basic_rules(agent_result):
             if _cof0 > _cof1:
                 return [0, 1]
             elif _cof0 == _cof1:
-                return [0.5, 0.5]
+                tmp = [0,0]
+                tmp[np.random.randint(2)] = 1
+                return tmp
             else:
                 return [1, 0]
     elif total_rebuffer0 == total_rebuffer1:
         if total_bitrate0 > total_bitrate1:
             return [1, 0]
         elif total_bitrate0 == total_bitrate1:
-            return [1, 0]
+            tmp = [0,0]
+            tmp[np.random.randint(2)] = 1
+            return tmp
         else:
             return [0, 1]
     else:
@@ -72,7 +87,9 @@ def basic_rules(agent_result):
             if _cof0 > _cof1:
                 return [0, 1]
             elif _cof0 == _cof1:
-                return [0.5, 0.5]
+                tmp = [0,0]
+                tmp[np.random.randint(2)] = 1
+                return tmp
             else:
                 return [1, 0]
         elif total_bitrate0 == total_bitrate1:

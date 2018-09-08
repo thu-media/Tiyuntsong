@@ -33,7 +33,7 @@ def read_history(filename='elo_baseline.txt'):
     return np.array(_tmpA)
 
 
-def moving_average(data, alpha=0.91):
+def moving_average(data, alpha=0.60):
     _tmp = []
     _val = data[0]
     for p in data:
@@ -62,7 +62,7 @@ _label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh', 'Constr
 #_label = ['ThroughputRule', 'DynamicDash', 'Dynamic', 'Bola', 'BolaEnh', 'Constrained']
 _color = ['darkred', 'darkblue', 'salmon', 'gray', 'pink', 'darkgreen']
 for index, p in enumerate(_tmp):
-    ax1.hlines(p, 0, len(_a), linestyles="dashed", color = _color[index], label = _label[index], lw = LW)
+    ax1.hlines(p, 0, len(_a), linestyles="dashed", color = _color[index], lw = LW)
 ax1.legend()
 savefig('elo.png')
-print 'done'
+os.system('scp elo.png root@1029.mythkast.net:/root/elo/7.png')

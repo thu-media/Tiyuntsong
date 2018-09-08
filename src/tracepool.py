@@ -6,20 +6,26 @@ from tqdm import tqdm
 
 
 class tracepool(object):
-    def __init__(self, workdir='./traces', ratio=0.8):
+    def __init__(self, workdir='./traces', testdir='./test', ratio=0.8):
         self.work_dir = workdir
+        self.test_dir = testdir
         self.abr_list = [sabre.ThroughputRule, sabre.DynamicDash,
                          sabre.Dynamic, sabre.Bola, sabre.BolaEnh, sabre.ConstrainRule]
         #[sabre.ThroughputRule, sabre.ConstrainRule]
         self.sample_list = []
-        self.trace_list_all = []
+        self.trace_list = []
+        self.test_list = []
+
         for p in os.listdir(self.work_dir):
             for l in os.listdir(self.work_dir + '/' + p):
-                self.trace_list_all.append(
+                self.trace_list.append(
                     self.work_dir + '/' + p + '/' + l)
-        _trace_len = int(len(self.trace_list_all) * ratio)
-        self.trace_list = self.trace_list_all[:_trace_len]
-        self.test_list = self.trace_list_all[_trace_len+1:]
+
+        for p in os.listdir(self.test_dir):
+            for l in os.listdir(self.test_dir + '/' + p):
+                self.test_list.append(
+                    self.test_dir + '/' + p + '/' + l)
+
         self.elo_score = []
 
         for p in self.abr_list:
@@ -29,7 +35,7 @@ class tracepool(object):
 
     def sample(self):
         print('generating samples')
-        for _trace in tqdm(self.get_test_set(),ascii=True):
+        for _trace in tqdm(self.get_test_set(), ascii=True):
             for _index, _abr in enumerate(self.abr_list):
                 self.sample_list[_index].append(
                     sabre.execute_model(abr=_abr, trace=_trace))

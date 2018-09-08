@@ -9,7 +9,8 @@ from log import log
 import os
 NUM_AGENT = 2
 AUTO_SAVE = True
-TEST_EPOCH = 10
+TEST_EPOCH = 5
+SAMPLE_LEN = 30
 MODEL_SAVE_NAME = 'model/best'
 os.system('mkdir model')
 def main():
@@ -19,18 +20,21 @@ def main():
     elo_file = open('elo.txt', 'w')
     agent_list = []
     agent_elo = []
+    _tracepool = tracepool()
     for p in range(NUM_AGENT):
         agent_list.append(Zero(str(p)))
         agent_elo.append(1000.0)
-    _tracepool = tracepool()
     _epoch = 0
     while True:
-        pbar = tqdm(total=TEST_EPOCH * len(_tracepool.get_list_shuffle()), ascii=True)
+        #for _agent in agent_list:
+        #    _agent.set_test(False)
+
+        pbar = tqdm(total=TEST_EPOCH * SAMPLE_LEN, ascii=True)
         for p in range(TEST_EPOCH):
             _tmp = [0, 0, 0]
             _state_stack, _reward_stack = [], []
             _trace_result = []
-            for _trace in _tracepool.get_list_shuffle():
+            for _trace in _tracepool.get_list_shuffle(sample=SAMPLE_LEN):
                 agent_result = []
                 for _agent in agent_list:
                     total_bitrate, total_rebuffer, total_smoothness = env.execute(
@@ -57,8 +61,10 @@ def main():
                 _agent.learn(_d)
                 _agent.clear()
             _epoch += 1
-            
+        pbar.close()
         #start test
+        #for _agent in agent_list:
+        #    _agent.set_test(True)
         agent_elo = []
         for p in range(NUM_AGENT):
             agent_elo.append(1000.0)
@@ -90,11 +96,14 @@ def main():
                 model_log.close()
                 print('Auto saved')
 
+        for _agent in agent_list:
+            _agent.save_current()
+
         print(round(_tmp[0] * 100.0 / _tmp[-1], 2), '%',
             ',', round(_tmp[1] * 100.0 / _tmp[-1], 2), '%')
             
         _log.write_line()
-        os.system('python draw.py')
+        os.system('python3 draw.py')
 
 
 if __name__ == '__main__':

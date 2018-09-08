@@ -2,9 +2,9 @@ import numpy as np
 import tensorflow as tf
 import tflearn
 
-
+#alpha zero
 GAMMA = 0.6
-ENTROPY_WEIGHT = 0.3
+ENTROPY_WEIGHT = 0.005
 ENTROPY_EPS = 1e-6
 FEATURE_NUM = 64
 GAN_CORE = 16
@@ -35,10 +35,18 @@ class DualNetwork(object):
     def create_dual_network(self, inputs, s_dim):
         with tf.variable_scope(self.scope + '-dual', reuse=self.reuse):
             split_array = []
-            for i in range(s_dim[0]):
+            for i in range(s_dim[0] - 3):
                 tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
+                tmp = tflearn.batch_normalization(tmp)
                 tmp = tflearn.conv_1d(
                     tmp, FEATURE_NUM, 3, activation='relu')
+                tmp = tflearn.flatten(tmp)
+                split_array.append(tmp)
+
+            for i in range(s_dim[0] - 3, s_dim[0]):
+                tmp = tf.reshape(inputs[:, i:i+1, :], (-1, s_dim[1], 1))
+                tmp = tflearn.batch_normalization(tmp)
+                tmp = tflearn.fully_connected(tmp, FEATURE_NUM, activation='relu')
                 tmp = tflearn.flatten(tmp)
                 split_array.append(tmp)
             #out, _ = self.attention(split_array, FEATURE_NUM)
@@ -122,7 +130,7 @@ class ActorNetwork(object):
                 -self.act_grad_weights
             )
         ) \
-            + ENTROPY_WEIGHT * tf.reduce_sum(tf.multiply(self.out,
+            + self.entropy * tf.reduce_sum(tf.multiply(self.out,
                                                        tf.log(self.out + ENTROPY_EPS)))
 
         # Combine the gradients here

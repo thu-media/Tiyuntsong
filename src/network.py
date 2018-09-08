@@ -6,16 +6,17 @@ import tensorflow as tf
 import os
 import time
 os.environ['CUDA_VISIBLE_DEVICES'] = '2'
-# import tflearn
+import tflearn
 
-RAND_RANGE = 10000
+RAND_RANGE = 1000
 EPS = 1e-6
+THETA = 0.6
 
 
 class Zero(sabre.Abr):
     S_INFO = 7
     S_LEN = 10
-    THROUGHPUT_NORM = 40 * 1024.0
+    THROUGHPUT_NORM = 56 * 1024.0
     BITRATE_NORM = 8 * 1024.0
     TIME_NORM = 1000.0
    # A_DIM = len(VIDEO_BIT_RATE)
@@ -51,19 +52,31 @@ class Zero(sabre.Abr):
                                         dual=self.dual, gan=self.gan)
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
+        self.current_saver = tf.train.Saver()
+
         self.history = []
         self.quality_history = []
         self.replay_buffer = []
 
         self.global_throughput = 0.0
+
+        self.log_index = 0
+        self.use_argmax= False
         # self.s_batch = [np.zeros((Zero.S_INFO, Zero.S_LEN))]
         # action_vec = np.zeros(Zero.A_DIM)
         # self.a_batch = [action_vec]
         # self.r_batch = []
         # self.actor_gradient_batch = []
         # self.critic_gradient_batch = []
+
+    def set_test(self, _bool):
+        self.use_argmax = _bool
+
     def save(self, filename):
-        self.saver.save(self.sess, filename + ".ckpt")
+        self.saver.save(self.sess, self.scope + '-' + filename + ".ckpt")
+
+    def save_current(self):
+        self.current_saver.save(self.sess, 'model' + self.scope + "/current.ckpt")
 
     def teach(self, buffer):
         for (s_batch, a_batch, r_batch) in buffer:
@@ -95,10 +108,12 @@ class Zero(sabre.Abr):
         self.history = []
         self.quality_history = []
         self.replay_buffer = []
+        self.log_index = 0
 
     def learn(self, ratio=1.0):
         actor_gradient_batch, critic_gradient_batch = [], []
         g_win = self._pull()
+        np.random.shuffle(self.replay_buffer)
         for (s_batch, a_batch, r_batch, g_batch) in self.replay_buffer:
             s_batch = np.stack(s_batch, axis=0)
             a_batch = np.vstack(a_batch)
@@ -145,13 +160,21 @@ class Zero(sabre.Abr):
         s_batch, a_batch, r_batch, g_batch = [], [], [], []
         assert len(self.history) == len(reward)
         _index = 0
+        _file = open('./log/' + str(self.scope) + '-' +
+                     str(self.log_index) + '.log', 'w')
         for (state, action, gan) in self.history:
             s_batch.append(state)
             a_batch.append(action)
-            r_batch.append(reward[_index])
+            # always obey final reward
+            r_batch.append(np.mean([THETA * reward[_index], (1.0 - THETA) * reward[-1]]))
             g_batch.append(gan)
+            _file.write(str(np.argmax(action)))
+            _file.write('\n')
             _index += 1
-
+        _file.close()
+        self.log_index += 1
+        (s_batch, a_batch, r_batch, g_batch) = tflearn.data_utils.shuffle(
+            s_batch, a_batch, r_batch, g_batch)
         self.replay_buffer.append((s_batch, a_batch, r_batch, g_batch))
 
         self.history = []
@@ -167,37 +190,46 @@ class Zero(sabre.Abr):
             self.quality_history.append(
                 (sabre.played_bitrate, sabre.rebuffer_time, sabre.total_bitrate_change))
         if segment_index < 0:
+            self.state = np.zeros((Zero.S_INFO, Zero.S_LEN))
+            self.past_gan = np.zeros(Zero.GAN_CORE)
             return
 
         download_time, throughput, _, _, _ = sabre.log_history[-1]
         state = self.state
         state = np.roll(state, -1, axis=1)
 
-        state[0, -1] = min(throughput / Zero.THROUGHPUT_NORM, 1.0)
-        state[1, -1] = min(download_time / (10 * Zero.TIME_NORM), 1.0)
-        state[2, -1] = self.quality / self.quality_len
-        state[3, -1] = (len(sabre.manifest.segments) -
+        state[0, -1] = throughput / Zero.THROUGHPUT_NORM
+        state[1, -1] = download_time / (30 * Zero.TIME_NORM)
+        state[2, -1] = (len(sabre.manifest.segments) -
                         segment_index) / len(sabre.manifest.segments)
-        state[4, -1] = sabre.get_buffer_level() / (25 * Zero.TIME_NORM)
+        state[3, -1] = sabre.get_buffer_level() / (25 * Zero.TIME_NORM)
 
-        for p in range(Zero.S_INFO - 2):
-            if state[p, -1] > 1.0:
-                self.global_throughput = max(
-                    self.global_throughput, throughput)
-                print('overflow', p, state[p, -1], self.global_throughput)
+        # past video quality selected
+        action_vec = np.zeros(Zero.A_DIM)
+        action_vec[self.quality] = 1
+        state[4, 0:Zero.A_DIM] = action_vec
 
-        state[5, 0:Zero.A_DIM] = np.array(sabre.manifest.bitrates /
-                                          np.max(sabre.manifest.bitrates))
+        state[5, 0:Zero.A_DIM] = np.array(
+            sabre.manifest.bitrates) / np.max(sabre.manifest.bitrates)
         state[6, 0:Zero.A_DIM] = np.array(
-            sabre.manifest.segments[segment_index]) / 1024.0 / 1024.0 / 2.0
+            sabre.manifest.segments[segment_index]) / 1024.0 / Zero.THROUGHPUT_NORM
+
+        #for p in range(Zero.S_INFO):
+        #    if state[p, -1] > 1.0:
+        #        self.global_throughput = max(
+        #            self.global_throughput, throughput)
+        #        print('overflow', p, state[p, -1], self.global_throughput)
 
         self.state = state
         past_gan, action_prob = self.actor.predict(
             np.reshape(self.state, (1, Zero.S_INFO, Zero.S_LEN)),
             np.reshape(self.past_gan, (1, Zero.GAN_CORE)))
-        action_cumsum = np.cumsum(action_prob[0])
-        quality = (action_cumsum > np.random.randint(
-            1, RAND_RANGE) / float(RAND_RANGE)).argmax()
+        if self.use_argmax:
+            quality = np.argmax(action_prob[0])
+        else:
+            action_cumsum = np.cumsum(action_prob[0])
+            quality = (action_cumsum > np.random.randint(
+                1, RAND_RANGE) / float(RAND_RANGE)).argmax()
 
         action_vec = np.zeros(Zero.A_DIM)
         action_vec[quality] = 1
