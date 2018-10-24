@@ -456,13 +456,21 @@ class GANNetwork(object):
         })
 
     def optimize(self, state_input, past_gan, d_real):
+        # easy to understand
         # trick:run twice
-        self.sess.run([self.disc_op, self.generate], feed_dict={
+        self.sess.run(self.disc_op, feed_dict={
             self.inputs_g: state_input,
             self.gan_inputs: past_gan,
             self.inputs_d_real: d_real,
             # self.inputs_d_fake: d_fake
         })
+        for k in range(2):
+            self.sess.run(self.gen_op, feed_dict={
+                self.inputs_g: state_input,
+                self.gan_inputs: past_gan,
+                self.inputs_d_real: d_real,
+                # self.inputs_d_fake: d_fake
+            })
 
     def get_network_params(self):
         _params_g = self.sess.run(self.network_params_g)
