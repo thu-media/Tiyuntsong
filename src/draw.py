@@ -65,4 +65,4 @@ for index, p in enumerate(_tmp):
     ax1.hlines(p, 0, len(_a), linestyles="dashed", color = _color[index], lw = LW)
 ax1.legend()
 savefig('elo.png')
-os.system('scp elo.png root@1029.mythkast.net:/root/elo/7.png')
+#os.system('scp elo.png root@1029.mythkast.net:/root/elo/7.png')
